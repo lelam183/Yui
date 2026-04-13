@@ -166,9 +166,9 @@ const VIDEO_ASR_MAX_SECONDS = Math.max(
 );
 const LOCAL_ASR_MODEL = (process.env.LOCAL_ASR_MODEL || "medium").trim();
 const LOCAL_ASR_LANG = (process.env.LOCAL_ASR_LANG || "auto").trim().toLowerCase();
-const ASR_CUDA_VISIBLE_DEVICES = (process.env.ASR_CUDA_VISIBLE_DEVICES || "0").trim();
-const VOICE_CUDA_VISIBLE_DEVICES = (process.env.VOICE_CUDA_VISIBLE_DEVICES || "1").trim();
-const VIDEO_CUDA_VISIBLE_DEVICES = (process.env.VIDEO_CUDA_VISIBLE_DEVICES || "1").trim();
+const ASR_CUDA_VISIBLE_DEVICES = (process.env.ASR_CUDA_VISIBLE_DEVICES || "").trim();
+const VOICE_CUDA_VISIBLE_DEVICES = (process.env.VOICE_CUDA_VISIBLE_DEVICES || "").trim();
+const VIDEO_CUDA_VISIBLE_DEVICES = (process.env.VIDEO_CUDA_VISIBLE_DEVICES || "").trim();
 const VOICE_ENABLED = process.env.VOICE_ENABLED?.toLowerCase() === "true";
 const VOICE_PORT = parseInt(process.env.VOICE_PORT) || 3001;
 // VOICE_HOST_URL: URL công khai (Cloudflare Tunnel) để Zalo clients download voice

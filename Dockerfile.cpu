@@ -1,0 +1,49 @@
+# syntax=docker/dockerfile:1.7
+
+# ── Stage 1: Build Node modules ───────────────────────────────────────────────
+FROM node:20-slim AS node-builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm install --omit=dev
+
+# ── Stage 2: CPU Runtime ───────────────────────────────────────────────────────
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dumb-init \
+    python3 python3-pip python3-venv python3-dev \
+    gcc g++ make \
+    ffmpeg libsndfile1 sox \
+    git wget curl \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV HF_HOME=/app/hf_cache \
+    TRANSFORMERS_CACHE=/app/hf_cache \
+    TORCH_HOME=/app/torch_cache
+
+# CPU-only Python stack (lighter than GPU image)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install --break-system-packages \
+    "numpy>=1.26,<3" "pillow>=10.0.0" soundfile scipy
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install --break-system-packages \
+    faster-whisper yt-dlp onnxruntime vieneu
+
+WORKDIR /app
+
+COPY --from=node-builder /app/node_modules ./node_modules
+COPY bot.mjs voice_pipeline.py asr_local.py ./
+
+# Bundle local voice clone samples into image
+COPY voice-samples/data/ref_audio/arisu.wav voice-samples/data/ref_audio/hutao.wav voice-samples/data/ref_audio/miku.wav /app/voice_samples/
+
+RUN mkdir -p /app/data /app/data/voice_tmp /app/models /app/voice_samples
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+CMD ["node", "bot.mjs"]

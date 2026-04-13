@@ -1,205 +1,254 @@
 # Zalo AI Bot (Gemini + Whisper + VieNeu)
 
-Bot chat nhóm Zalo dùng Google Gemini để hiểu ngữ cảnh hội thoại, ảnh, video; dùng Whisper để nhận diện giọng nói; và VieNeu TTS để trả lời bằng giọng Việt.
+Bot chat nhóm Zalo, hỗ trợ hội thoại tự nhiên, phân tích ảnh/video/voice chat, và trả lời bằng giọng nói tiếng Việt.
 
-## 1) Bot này làm gì?
+## Tính năng chính
 
-- Chat tự nhiên trong nhóm Zalo, ưu tiên câu trả lời ngắn gọn, có cảm xúc.
-- Hiểu nội dung media:
-  - Ảnh/sticker qua Gemini Vision.
-  - Video/meme qua Gemini Video.
-  - Voice chat/audio qua ASR cục bộ (`faster-whisper`).
-- Có cơ chế nhớ hành động gần đây của bot trong thread để hạn chế trả lời sai kiểu "tôi chưa tag ai".
-- Hỗ trợ nhắc tên/tag thành viên theo UID chính xác hơn bằng dữ liệu nhóm và alias.
-- Hỗ trợ trả lời bằng giọng nói (VieNeu TTS), có thể chọn đuôi file audio xuất ra bằng `VOICE_OUTPUT_EXT` (ví dụ: `m4a`, `ogg`, `mp3`, `aac`, `wav`, `opus`).
+- Chat ngắn gọn, tự nhiên, có cảm xúc theo ngữ cảnh.
+- Phân tích ảnh/sticker bằng Gemini Vision.
+- Phân tích video/meme bằng Gemini Video.
+- Nhận diện giọng nói cục bộ bằng `faster-whisper`.
+- Trả lời voice bằng VieNeu TTS.
+- Ghi nhớ hành động gần đây để hạn chế trả lời mâu thuẫn trong hội thoại.
+- Hỗ trợ tag/mention chính xác hơn với alias + UID.
 
-## 2) Kiến trúc tổng quan
+## Cấu trúc project
 
-- `bot.mjs`: luồng chính của bot Zalo (nhận tin, gọi model, xử lý tag/mention, điều phối media, gửi phản hồi).
-- `asr_local.py`: nhận diện giọng nói cục bộ bằng Whisper.
-- `voice_pipeline.py`: pipeline tổng hợp giọng (VieNeu) và convert format audio bằng `ffmpeg`.
-- `docker-compose.yml`: cấu hình chạy mặc định (build từ source).
-- `docker-compose.gpu.yml`: override khi chạy chế độ GPU.
-- `docker-compose.image.cpu.example.yml`: ví dụ chạy bằng image có sẵn (CPU).
-- `docker-compose.image.gpu.example.yml`: ví dụ chạy bằng image có sẵn (GPU).
-- `.env.cpu.example` và `.env.gpu.example`: mẫu biến môi trường tương ứng CPU/GPU.
+- `bot.mjs`: luồng chính bot Zalo.
+- `asr_local.py`: pipeline ASR local.
+- `voice_pipeline.py`: synth voice + convert audio format.
+- `Dockerfile.gpu`: image đầy đủ (GPU-friendly).
+- `Dockerfile.cpu`: image CPU tối giản, nhẹ hơn.
+- `docker-compose.image.cpu.example.yml`: build trực tiếp từ `Dockerfile.cpu` (CPU).
+- `docker-compose.image.gpu.example.yml`: chạy bằng image có sẵn (GPU).
+- `.env.cpu.example`, `.env.gpu.example`: file mẫu biến môi trường.
 
-## 3) Công nghệ, package và model đang dùng
+## Package và model đang dùng
 
-### Node.js dependencies chính
+### Node.js
 
-- `zca-js`: kết nối và thao tác với Zalo.
-- `better-sqlite3`: SQLite cho dữ liệu hội thoại/RAG.
-- `sharp`, `@jsquash/jxl`: xử lý ảnh.
-- `pdf-parse`, `xlsx`, `mammoth`, `officeparser`: đọc tài liệu.
-- `qrcode-terminal`: hiển thị QR đăng nhập phiên Zalo.
+- `zca-js`, `better-sqlite3`, `sharp`, `@jsquash/jxl`
+- `pdf-parse`, `xlsx`, `mammoth`, `officeparser`
+- `qrcode-terminal`
 
-### Python dependencies chính
+### Python
 
-- `torch`, `torchaudio`: nền tảng ML/ASR/TTS.
-- `faster-whisper`: ASR cục bộ cho voice/audio/video.
-- `yt-dlp`: lấy audio/video từ nguồn URL (ví dụ YouTube).
-- `vieneu[gpu]`, `onnxruntime-gpu`: TTS tiếng Việt.
-- `numpy`, `pillow`, `soundfile`, `scipy`: xử lý dữ liệu media.
-- `ffmpeg`, `sox` (system packages): convert/audio processing.
+- `faster-whisper`, `yt-dlp`
+- `vieneu` (hoặc `vieneu[gpu]` trên image GPU)
+- `onnxruntime` (CPU) / `onnxruntime-gpu` (GPU)
+- `numpy`, `pillow`, `soundfile`, `scipy`
 
 ### Model/provider
 
-- LLM/vision/video/audio hiểu ngữ cảnh: **Google Gemini** (qua API).
-- ASR local: **Whisper** (`faster-whisper`).
-- TTS: **VieNeu-TTS** (`pnnbao-ump/VieNeu-TTS-v2-Turbo` mặc định).
+- LLM/Vision/Video: **Google Gemini API**
+- ASR local: **Whisper** (`faster-whisper`)
+- TTS: **VieNeu-TTS**
 
-Lưu ý: các thành phần Qwen/Piper/RVC trước đây đã được loại bỏ khỏi cấu hình hiện tại.
+## Hướng dẫn Docker Compose (rõ ràng, theo từng trường hợp)
 
-## 4) Cấu hình nhanh theo CPU hoặc GPU
-
-### A. Chạy bằng image có sẵn (đơn giản cho người dùng)
+### 1) Chạy bằng image có sẵn (khuyên dùng cho user)
 
 #### CPU
 
-1. Copy file môi trường:
-   - `cp .env.cpu.example .env`
-2. Điền các biến bắt buộc trong `.env`:
-   - `GEMINI_API_KEY`
-   - `CLOUDFLARE_TUNNEL_TOKEN`
-   - (khuyên cấu hình thêm) `VOICE_HOST_URL`, `BOT_OWNER_NAME`, `BOT_OWNER_UID`
-3. Chạy:
-   - `docker compose -f docker-compose.image.cpu.example.yml up -d`
+```bash
+cp .env.cpu.example .env
+# sửa GEMINI_API_KEY, CLOUDFLARE_TUNNEL_TOKEN, VOICE_HOST_URL...
+docker build -f Dockerfile.cpu -t zalo-ai:cpu .
+docker compose -f docker-compose.image.cpu.example.yml up -d --build
+```
+
+Nếu muốn chạy cả Cloudflare Tunnel cùng lúc:
+
+```bash
+docker compose -f docker-compose.image.cpu.example.yml --profile tunnel up -d --build
+```
 
 #### GPU
 
-1. Máy phải có NVIDIA driver + `nvidia-container-toolkit`.
-2. Copy file môi trường:
-   - `cp .env.gpu.example .env`
-3. Điền các biến bắt buộc:
-   - `GEMINI_API_KEY`
-   - `CLOUDFLARE_TUNNEL_TOKEN`
-4. Chạy:
-   - `docker compose -f docker-compose.image.gpu.example.yml up -d`
+Yêu cầu host có NVIDIA driver + `nvidia-container-toolkit`.
 
-### B. Chạy build từ source trong repo
+```bash
+cp .env.gpu.example .env
+# sửa GEMINI_API_KEY, CLOUDFLARE_TUNNEL_TOKEN, VOICE_HOST_URL...
+docker build -t zalo-ai:gpu .
+docker compose -f docker-compose.image.gpu.example.yml up -d
+```
 
-- CPU mặc định:
-  - `cp .env.cpu.example .env`
-  - `docker compose up -d --build`
-- GPU:
-  - `cp .env.gpu.example .env`
-  - `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build`
+Nếu muốn chạy cả Cloudflare Tunnel cùng lúc:
 
-## 5) Nhóm biến môi trường quan trọng
+```bash
+docker compose -f docker-compose.image.gpu.example.yml --profile tunnel up -d
+```
 
-#### Bắt buộc
+### 2) Build image từ source rồi chạy
 
-- `GEMINI_API_KEY`: API key Gemini (có thể nhiều key, ngăn cách dấu phẩy).
-- `CLOUDFLARE_TUNNEL_TOKEN`: token tunnel để publish voice endpoint.
+#### CPU nhẹ (dùng `Dockerfile.cpu`)
 
-#### Model/AI
+```bash
+cp .env.cpu.example .env
+docker build -f Dockerfile.cpu -t zalo-ai:cpu .
+docker compose -f docker-compose.image.cpu.example.yml up -d --build
+```
 
-- `GEMINI_MODEL`: danh sách model chat chính.
-- `GEMINI_VISION_MODELS`: model xử lý ảnh.
-- `GEMINI_VIDEO_MODELS`, `GEMINI_VIDEO_MODEL`: model xử lý video.
-- `GEMINI_AUDIO_MODEL`: model audio understanding của Gemini (nếu dùng).
+#### GPU (dùng `Dockerfile.gpu`)
 
-#### Video + ASR
+```bash
+cp .env.gpu.example .env
+docker build -f Dockerfile.gpu -t zalo-ai:gpu .
+docker compose -f docker-compose.image.gpu.example.yml up -d
+```
 
-- `VIDEO_AI_ENABLED`: bật/tắt hiểu video.
-- `VIDEO_AI_PROVIDER`: hiện tại dùng `gemini`.
-- `YOUTUBE_VIDEO_AI_ENABLED`: bật phân tích video YouTube.
-- `LOCAL_ASR_MODEL`: model Whisper (`large-v3-turbo` mặc định).
-- `LOCAL_ASR_DEVICE`: `cpu` hoặc `cuda`.
-- `LOCAL_ASR_COMPUTE`: `int8`, `float16`, ...
-- `VIDEO_FORCE_CPU`: ép xử lý video/audio qua CPU.
+## Vì sao cần Cloudflare Tunnel?
 
-#### Voice/TTS
+Bot cần gửi voice message qua URL public để client Zalo tải file audio ổn định.  
+Container local trong mạng LAN/NAT thường không có domain public trực tiếp, nên Cloudflare Tunnel giúp:
 
-- `VOICE_ENABLED`: bật trả lời bằng giọng.
-- `VOICE_ONLY_MODE`: ưu tiên chế độ voice.
-- `VOICE_SEND_METHOD`: cách gửi voice về Zalo.
-- `VOICE_OUTPUT_EXT`: đuôi file audio đầu ra (`m4a`, `ogg`, `mp3`, `aac`, `wav`, `opus`).
-- `USE_VIENEU_TTS`: bật VieNeu TTS.
-- `VIENEU_GPU_ENABLED`: bật tăng tốc GPU cho TTS.
-- `VOICE_HOST_URL`: domain public để client truy cập file voice.
+- public endpoint an toàn cho `VOICE_HOST_URL` (không cần mở port router thủ công);
+- giảm lỗi timeout/không tải được voice trên thiết bị khác mạng;
+- đơn giản hóa triển khai khi chạy tại nhà/VPS sau NAT.
 
-#### Bot hành vi/tag
+Bạn có thể **không dùng tunnel** nếu đã có domain public + reverse proxy riêng.  
+Khi đó chỉ cần đặt `VOICE_HOST_URL` về URL public của bạn và không bật profile `tunnel`.
 
-- `SYSTEM_PROMPT`: tính cách và rule trả lời.
-- `GROUP_PREFIX`: tiền tố bot lắng nghe trong nhóm.
-- `BOT_MENTION_ALIASES`: alias gọi bot.
-- `MEMBER_ALIASES`: map alias thủ công cho thành viên để tag chính xác hơn.
+## Reference biến môi trường (đầy đủ)
 
-#### Runtime/path
+Quy ước:
+- **Bắt buộc**: cần set để bot chạy đúng.
+- **Default CPU/GPU**: giá trị mặc định trong `.env.cpu.example` và `.env.gpu.example`.
 
-- `SESSION_FILE`: phiên đăng nhập Zalo.
-- `HISTORY_DIR`: thư mục lịch sử/chat state.
-- `VOICE_TMP_DIR`: thư mục file tạm TTS.
-- `TZ`: timezone container.
+### 1) Gemini API và model
 
-#### GPU runtime
+- `GEMINI_API_KEY` — **Bắt buộc** — Default CPU/GPU: `your_gemini_api_key_1,your_gemini_api_key_2` — Danh sách API key Gemini (hỗ trợ nhiều key, ngăn cách dấu phẩy).
+- `GEMINI_MODEL` — Tùy chọn — Default CPU/GPU: `gemini-3.1-flash-lite-preview,gemini-2.5-flash-lite,gemma-3-27b-it,gemini-3-flash-preview` — Danh sách model chat chính theo thứ tự fallback.
+- `GEMINI_VISION_MODELS` — Tùy chọn — Default CPU/GPU: `gemini-2.5-flash,gemini-3-flash-preview,gemini-3-pro-preview,gemini-3.1-flash-lite-preview,gemini-2.5-flash-lite` — Model dùng cho phân tích ảnh.
+- `GEMINI_SEARCH_MODELS` — Tùy chọn — Default CPU/GPU: `gemini-2.5-flash-lite,gemini-2.5-flash,gemini-3.1-flash-lite-preview,gemini-3-flash-preview,gemini-2.5-pro` — Model dùng khi có search/grounding.
+- `GEMINI_AUDIO_MODEL` — Tùy chọn — Default CPU/GPU: `gemini-2.5-flash,gemini-2.5-flash-lite,gemini-3.1-flash-lite-preview,gemini-3-flash-preview,gemini-2.5-pro` — Model xử lý audio qua Gemini.
 
-- `NVIDIA_VISIBLE_DEVICES`, `CUDA_VISIBLE_DEVICES`: chọn GPU.
-- `ASR_CUDA_VISIBLE_DEVICES`, `VOICE_CUDA_VISIBLE_DEVICES`, `VIDEO_CUDA_VISIBLE_DEVICES`: tách GPU theo tác vụ.
+### 2) Cấu hình hành vi bot
 
-## 6) Bảo mật khi push GitHub
+- `SYSTEM_PROMPT` — Tùy chọn — Default CPU/GPU: `Yui - friendly Vietnamese chat bot. Keep replies short and natural.` — Persona và luật trả lời của bot.
+- `GEMINI_TEMPERATURE` — Tùy chọn — Default CPU/GPU: `1.1` — Độ sáng tạo khi sinh nội dung.
+- `ENABLE_SEARCH` — Tùy chọn — Default CPU/GPU: `false` — Bật/tắt search internet.
+- `CAUTION_USERS` — Tùy chọn — Default CPU/GPU: (rỗng) — Danh sách user cần chú ý/ưu tiên xử lý theo logic riêng.
+- `GROUP_PREFIX` — Tùy chọn — Default CPU/GPU: `"@yui "` — Prefix gọi bot trong nhóm.
+- `BOT_MENTION_ALIASES` — Tùy chọn — Default CPU/GPU: `yui,commit,bot,ai` — Alias để bot nhận diện khi được gọi.
+- `MEMBER_ALIASES` — Tùy chọn — Default CPU/GPU: (rỗng) — Mapping alias thành viên để tag chính xác hơn.
+- `BOT_OWNER_NAME` — Tùy chọn — Default CPU/GPU: `Your Name` — Tên chủ bot.
+- `BOT_OWNER_UID` — Tùy chọn — Default CPU/GPU: (rỗng) — UID chủ bot để xác thực chính xác chủ sở hữu.
 
-Repo đã có `.gitignore` để tránh đẩy dữ liệu nhạy cảm như:
+### 3) Video + ASR local
 
-- file `.env` thật;
-- session/token/key/cert cục bộ;
-- cache model (`hf_cache`, `torch_cache`, `models`);
-- log/file tạm.
+- `VIDEO_AI_ENABLED` — Tùy chọn — Default CPU/GPU: `true` — Bật phân tích video.
+- `VIDEO_AI_PROVIDER` — Tùy chọn — Default CPU/GPU: `gemini` — Provider phân tích video.
+- `GEMINI_VIDEO_MODELS` — Tùy chọn — Default CPU/GPU: `gemini-2.5-flash-lite,gemini-3.1-flash-lite-preview,gemini-2.5-flash,gemini-3-flash-preview` — Danh sách model video fallback.
+- `GEMINI_VIDEO_MODEL` — Tùy chọn — Default CPU/GPU: (rỗng) — Ép dùng 1 model video cố định.
+- `GEMINI_VIDEO_TIMEOUT_MS` — Tùy chọn — Default CPU/GPU: `90000` — Timeout gọi Gemini video (ms).
+- `GEMINI_VIDEO_POLL_MS` — Tùy chọn — Default CPU/GPU: `2500` — Chu kỳ poll trạng thái file video (ms).
+- `GEMINI_VIDEO_POLL_TIMEOUT_MS` — Tùy chọn — Default CPU/GPU: `120000` — Timeout poll file video (ms).
+- `YOUTUBE_VIDEO_AI_ENABLED` — Tùy chọn — Default CPU/GPU: `true` — Cho phép phân tích link YouTube.
+- `VIDEO_ASR_MAX_SECONDS` — Tùy chọn — Default CPU/GPU: `120` — Thời lượng audio tối đa để ASR video.
+- `VIDEO_FORCE_CPU` — Tùy chọn — Default CPU: `true` / GPU: `false` — Ép pipeline video/ASR chạy CPU.
+- `VIDEO_LOCAL_FILES_ONLY` — Tùy chọn — Default CPU/GPU: `false` — Chỉ dùng file local, không download ngoài.
+- `LOCAL_ASR_MODEL` — Tùy chọn — Default CPU/GPU: `large-v3-turbo` — Model Whisper local.
+- `LOCAL_ASR_LANG` — Tùy chọn — Default CPU/GPU: `auto` — Ngôn ngữ ASR (`auto` để tự detect).
+- `VIDEO_ASR_ALLOWED_LANGS` — Tùy chọn — Default CPU/GPU: `vi,en,ja` — Danh sách ngôn ngữ ASR chấp nhận.
+- `LOCAL_ASR_FALLBACK_LANG` — Tùy chọn — Default CPU/GPU: `vi` — Ngôn ngữ fallback khi detect lệch.
+- `LOCAL_ASR_BEAM_SIZE` — Tùy chọn — Default CPU/GPU: `5` — Beam size cho decode ASR.
+- `LOCAL_ASR_OOM_FALLBACK_CPU` — Tùy chọn — Default CPU/GPU: `true` — Tự fallback CPU nếu ASR GPU bị OOM.
+- `LOCAL_ASR_CPU_COMPUTE` — Tùy chọn — Default CPU/GPU: `int8` — Compute type cho ASR khi chạy CPU.
+- `LOCAL_ASR_DEVICE` — Tùy chọn — Default CPU: `cpu` / GPU: `cuda` — Device ASR chính.
+- `LOCAL_ASR_COMPUTE` — Tùy chọn — Default CPU: `int8` / GPU: `float16` — Compute type theo device ASR.
 
-Khuyến nghị thêm:
+### 4) Voice/TTS
 
-- Không commit file secret trong `data/`.
-- Nếu lỡ commit secret, rotate key ngay (Gemini, Cloudflare, ...).
+- `VOICE_ENABLED` — Tùy chọn — Default CPU/GPU: `true` — Bật gửi trả lời bằng voice.
+- `VOICE_ONLY_MODE` — Tùy chọn — Default CPU/GPU: `true` — Ưu tiên chỉ gửi voice (không kèm text).
+- `TRANSCRIPT` — Tùy chọn — Default CPU/GPU: `false` — Có gửi transcript text sau voice hay không.
+- `TRANSCRIPT_DELAY_MS` — Tùy chọn — Default CPU/GPU: `1000` — Delay gửi transcript (ms).
+- `VOICE_SEND_METHOD` — Tùy chọn — Default CPU/GPU: `voice_url_first` — Chiến lược gửi voice về Zalo.
+- `VOICE_OUTPUT_EXT` — Tùy chọn — Default CPU/GPU: `m4a` — Định dạng file output (`m4a|ogg|mp3|aac|wav|opus`).
+- `VOICE_NATIVE_EMULATION` — Tùy chọn — Default CPU/GPU: `true` — Bật chế độ giả lập voice native.
+- `VOICE_NATIVE_TTL_MS` — Tùy chọn — Default CPU/GPU: `60000` — TTL cho chế độ native emulation (ms).
+- `VIENEU_MAX_STRETCH_RATIO` — Tùy chọn — Default CPU/GPU: `2.6` — Ngưỡng co giãn thời lượng audio của VieNeu.
+- `VOICE_PORT` — Tùy chọn — Default CPU/GPU: `3001` — Port HTTP serve voice file.
+- `VOICE_HOST_URL` — **Khuyên dùng (gần như bắt buộc khi gửi voice qua URL)** — Default CPU/GPU: `https://voice.your-domain.com` — URL public để client Zalo tải voice.
+- `VOICE_NAME` — Tùy chọn — Default CPU/GPU: `vi-VN-HoaiMyNeural` — Tên voice fallback.
+- `VOICE_PITCH` — Tùy chọn — Default CPU/GPU: `2` — Pitch voice fallback.
+- `VOICE_TIMEOUT_S` — Tùy chọn — Default CPU/GPU: `300` — Timeout pipeline voice (giây).
+- `VOICE_FILE_TTL_HOURS` — Tùy chọn — Default CPU/GPU: `720` — Thời gian giữ file voice đã tạo (giờ).
 
-## 7) Lệnh vận hành thường dùng
+### 5) VieNeu TTS
 
-- Xem log:
-  - `docker compose logs -f bot`
-- Restart bot:
-  - `docker compose restart bot`
-- Tắt toàn bộ:
-  - `docker compose down`
-- Cập nhật image và chạy lại:
-  - `docker compose pull && docker compose up -d`
+- `USE_VIENEU_TTS` — Tùy chọn — Default CPU/GPU: `true` — Bật engine VieNeu.
+- `VIENEU_GPU_ENABLED` — Tùy chọn — Default CPU: `false` / GPU: `true` — Bật tăng tốc GPU cho VieNeu.
+- `VIENEU_MODE` — Tùy chọn — Default CPU/GPU: `turbo` — Chế độ chạy VieNeu.
+- `VIENEU_MODELS` — Tùy chọn — Default CPU/GPU: `pnnbao-ump/VieNeu-TTS-v2-Turbo` — Danh sách model VieNeu fallback.
+- `VIENEU_MODEL` — Tùy chọn — Default CPU/GPU: `pnnbao-ump/VieNeu-TTS-v2-Turbo` — Model VieNeu chính.
+- `VIENEU_API_BASE` — Tùy chọn — Default CPU/GPU: (rỗng) — URL API khi dùng VieNeu remote mode.
+- `VIENEU_REF_AUDIO` — Tùy chọn — Default CPU/GPU: (rỗng) — File audio reference cho voice clone.
 
-## 8) Troubleshooting nhanh
+### 6) Cloudflare Tunnel
 
-- Bot không trả lời:
-  - kiểm tra `GEMINI_API_KEY`, log container, và session Zalo còn hiệu lực.
-- Không gửi được voice:
-  - kiểm tra `VOICE_HOST_URL`, tunnel, và port `3001`.
-- GPU không hoạt động:
-  - kiểm tra `nvidia-smi` trên host, toolkit Docker NVIDIA, và file compose GPU.
-- ASR chậm:
-  - dùng `.env.gpu.example` + `LOCAL_ASR_DEVICE=cuda` nếu có GPU.
+- `CLOUDFLARE_TUNNEL_TOKEN` — **Bắt buộc nếu bật service tunnel** — Default CPU/GPU: `your_cloudflare_tunnel_token` — Token chạy cloudflared tunnel.
 
-## 9) Voice samples mặc định và cách thêm giọng mới
+### 7) Google TTS (optional fallback)
 
-Image build hiện đã kèm sẵn 3 sample voice clone:
+- `GOOGLE_TTS_KEY_PATH` — Tùy chọn — Default CPU/GPU: `/app/data/gcloud-tts-key.json` — Đường dẫn service account JSON.
+- `GOOGLE_TTS_VOICE` — Tùy chọn — Default CPU/GPU: `vi-VN-Neural2-A` — Voice Google TTS fallback.
+
+### 8) Path và runtime chung
+
+- `SESSION_FILE` — Tùy chọn — Default CPU/GPU: `./data/session.json` — Nơi lưu session đăng nhập Zalo.
+- `HISTORY_DIR` — Tùy chọn — Default CPU/GPU: `./data/history` — Nơi lưu lịch sử hội thoại.
+- `VOICE_TMP_DIR` — Tùy chọn — Default CPU/GPU: `/app/data/voice_tmp` — Thư mục file tạm voice.
+- `TZ` — Tùy chọn — Default CPU/GPU: `Asia/Ho_Chi_Minh` — Timezone container.
+- `ACTIVE_CONV_TTL_MS` — Tùy chọn — Default CPU/GPU: `120000` — Cửa sổ active conversation (ms).
+
+### 9) NVIDIA routing (chỉ GPU)
+
+- `NVIDIA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: `all` / CPU: không dùng — Expose toàn bộ GPU cho container.
+- `CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: `all` / CPU: không dùng — Cho CUDA dùng toàn bộ GPU.
+- `ASR_CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: để trống / CPU: không dùng — Để trống = không pin GPU riêng cho ASR.
+- `VOICE_CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: để trống / CPU: không dùng — Để trống = không pin GPU riêng cho TTS.
+- `VIDEO_CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: để trống / CPU: không dùng — Để trống = không pin GPU riêng cho video.
+
+## Voice sample mặc định và cách thêm voice mới
+
+Image hiện kèm sẵn:
 
 - `/app/voice_samples/arisu.wav`
 - `/app/voice_samples/hutao.wav`
 - `/app/voice_samples/miku.wav`
 
-### Dùng nhanh 1 giọng clone cố định cho bot
+### Dùng nhanh giọng clone cố định
 
-1. Mở `.env`.
-2. Set `VIENEU_REF_AUDIO` về 1 file sample, ví dụ:
-   - `VIENEU_REF_AUDIO=/app/voice_samples/hutao.wav`
-3. Rebuild/restart container:
-   - `docker compose up -d --build`
+Trong `.env`:
 
-### Cách thêm voice mới của bạn
+```env
+VIENEU_REF_AUDIO=/app/voice_samples/hutao.wav
+```
 
-1. Chuẩn bị audio mẫu chất lượng sạch (khuyến nghị 5-15 giây, ít tạp âm).
-2. Đặt file vào thư mục:
-   - `voice-samples/data/ref_audio/`
-3. Cập nhật `Dockerfile` để copy file đó vào image (theo cùng pattern đang copy `arisu/hutao/miku`).
-4. Build lại image:
-   - `docker compose build --no-cache`
-   - hoặc `docker compose up -d --build`
-5. Trỏ `VIENEU_REF_AUDIO` sang file mới trong container (ví dụ `/app/voice_samples/ten-voice.wav`) rồi restart bot.
+Sau đó rebuild/restart container.
 
-Gợi ý format: ưu tiên `wav` hoặc `flac`; nếu dùng `mp3/m4a` vẫn hoạt động nhưng chất lượng clone có thể kém hơn file lossless.
+### Thêm giọng mới
+
+1. Đặt file vào `voice-samples/data/ref_audio/` (khuyên dùng `wav`/`flac`, 5-15 giây, ít noise).
+2. Thêm dòng `COPY` tương ứng trong `Dockerfile.gpu` hoặc `Dockerfile.cpu`.
+3. Build lại image.
+4. Trỏ `VIENEU_REF_AUDIO` tới file mới trong container.
+
+## Lệnh vận hành thường dùng
+
+```bash
+docker compose logs -f bot
+docker compose restart bot
+docker compose down
+docker compose pull && docker compose up -d
+```
+
+## Troubleshooting nhanh
+
+- Bot không trả lời: kiểm tra `GEMINI_API_KEY`, session Zalo, log container.
+- Không gửi được voice: kiểm tra `VOICE_HOST_URL`, tunnel, cổng `3001`.
+- GPU không hoạt động: kiểm tra `nvidia-smi` và toolkit Docker NVIDIA.
+- ASR chậm: dùng GPU hoặc giảm model ASR trong `.env`.
