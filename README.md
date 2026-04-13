@@ -210,12 +210,7 @@ Quy ước:
 
 - `CLOUDFLARE_TUNNEL_TOKEN` — **Bắt buộc nếu bật service tunnel** — Default CPU/GPU: `your_cloudflare_tunnel_token` — Token chạy cloudflared tunnel.
 
-### 7) Google TTS (optional fallback)
-
-- `GOOGLE_TTS_KEY_PATH` — Tùy chọn — Default CPU/GPU: `/app/data/gcloud-tts-key.json` — Đường dẫn service account JSON.
-- `GOOGLE_TTS_VOICE` — Tùy chọn — Default CPU/GPU: `vi-VN-Neural2-A` — Voice Google TTS fallback.
-
-### 8) Path và runtime chung
+### 7) Path và runtime chung
 
 - `SESSION_FILE` — Tùy chọn — Default CPU/GPU: `./data/session.json` — Nơi lưu session đăng nhập Zalo.
 - `HISTORY_DIR` — Tùy chọn — Default CPU/GPU: `./data/history` — Nơi lưu lịch sử hội thoại.
@@ -223,7 +218,7 @@ Quy ước:
 - `TZ` — Tùy chọn — Default CPU/GPU: `Asia/Ho_Chi_Minh` — Timezone container.
 - `ACTIVE_CONV_TTL_MS` — Tùy chọn — Default CPU/GPU: `120000` — Cửa sổ active conversation (ms).
 
-### 9) NVIDIA routing (chỉ GPU)
+### 8) NVIDIA routing (chỉ GPU)
 
 - `NVIDIA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: `all` / CPU: không dùng — Expose toàn bộ GPU cho container.
 - `CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: `all` / CPU: không dùng — Cho CUDA dùng toàn bộ GPU.
