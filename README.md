@@ -21,6 +21,8 @@ Bot chat nhóm Zalo, hỗ trợ hội thoại tự nhiên, phân tích ảnh/vid
 - `Dockerfile.cpu`: image CPU tối giản, nhẹ hơn.
 - `docker-compose.cpu.example.yml`: file compose CPU mặc định (dễ dùng).
 - `docker-compose.gpu.example.yml`: file compose GPU mặc định (dễ dùng).
+- `docker-compose.image.cpu.example.yml`: file compose build image CPU từ source.
+- `docker-compose.image.gpu.example.yml`: file compose build image GPU từ source.
 - `.env.cpu.example`, `.env.gpu.example`: file mẫu biến môi trường.
 
 ## Package và model đang dùng
@@ -131,7 +133,7 @@ Nếu máy local gặp lỗi `SIGILL` khi init VieNeu, build lại với bộ pi
 ```bash
 docker build -f Dockerfile.cpu \
   --build-arg VIENEU_VERSION=2.2.0 \
-  --build-arg ONNXRUNTIME_VERSION=1.19.2 \
+  --build-arg ONNXRUNTIME_VERSION=1.20.1 \
   --build-arg CTRANSLATE2_VERSION=4.4.0 \
   -t zalo-ai:cpu .
 ```
@@ -164,7 +166,7 @@ Container local trong mạng LAN/NAT thường không có domain public trực t
 - đơn giản hóa triển khai khi chạy tại nhà/VPS sau NAT.
 
 Bạn có thể **không dùng tunnel** nếu đã có domain public + reverse proxy riêng.  
-Khi đó chỉ cần đặt `VOICE_HOST_URL` về URL public của bạn và không bật profile `tunnel`.
+Khi đó chỉ cần đặt `VOICE_HOST_URL` về URL public của bạn và không chạy service `tunnel`.
 
 ## Reference biến môi trường (đầy đủ)
 
@@ -178,6 +180,7 @@ Quy ước:
 |---|---|---|---|---|
 | `VOICE_SEND_METHOD` | `voice_url_first` \| `attachment_first` \| `both` \| `zalo_native_like` \| `triple_redundant` | `voice_url_first` | `attachment_first` | Chọn chiến lược gửi voice message về Zalo |
 | `VOICE_OUTPUT_EXT` | `m4a` \| `ogg` \| `mp3` \| `aac` \| `wav` \| `opus` | `aac` | `aac` | Chọn định dạng file voice đầu ra |
+| `VOICE_NATIVE_EXT` | `ogg` \| `opus` \| `mp3` \| `wav` \| `m4a` \| `aac` | `ogg` | `ogg` | Chọn định dạng file native clone trước khi `sendVoice` |
 | `LOCAL_ASR_DEVICE` | `cpu` \| `cuda` | CPU: `cpu` / GPU: `cuda` | `cpu` | Chọn thiết bị chạy ASR local |
 | `LOCAL_ASR_COMPUTE` | `int8` \| `float16` \| `float32` | CPU: `int8` / GPU: `float16` | `float32` | Chọn compute type cho ASR |
 | `LOCAL_ASR_LANG` | `auto` hoặc mã ngôn ngữ (`vi`, `en`, `ja`,...) | `auto` | `auto` | Chọn ngôn ngữ nhận diện giọng nói |
@@ -242,6 +245,7 @@ Quy ước:
 - `TRANSCRIPT_DELAY_MS` — Tùy chọn — Default CPU/GPU: `1000` — Delay gửi transcript (ms).
 - `VOICE_SEND_METHOD` — Tùy chọn — Default CPU/GPU: `voice_url_first` (mặc định trong code khi thiếu env: `attachment_first`) — Chiến lược gửi voice về Zalo. Option: `voice_url_first|attachment_first|both|zalo_native_like|triple_redundant`.
 - `VOICE_OUTPUT_EXT` — Tùy chọn — Default CPU/GPU: `aac` — Định dạng file output. Option: `m4a|ogg|mp3|aac|wav|opus`.
+- `VOICE_NATIVE_EXT` — Tùy chọn — Default CPU/GPU: `ogg` (fallback code: `ogg`) — Định dạng native clone dùng trước `sendVoice`. Option: `ogg|opus|mp3|wav|m4a|aac`.
 - `VOICE_NATIVE_EMULATION` — Tùy chọn — Default CPU/GPU: `true` — Bật chế độ giả lập voice native.
 - `VOICE_NATIVE_TTL_MS` — Tùy chọn — Default CPU/GPU: `60000` — TTL cho chế độ native emulation (ms).
 - `VIENEU_MAX_STRETCH_RATIO` — Tùy chọn — Default CPU/GPU: `2.6` — Ngưỡng co giãn thời lượng audio của VieNeu.
@@ -268,11 +272,11 @@ Quy ước:
 
 ### 7) Path và runtime chung
 
-- `SESSION_FILE` — Tùy chọn — Default CPU/GPU: `./data/session.json` — Nơi lưu session đăng nhập Zalo.
-- `HISTORY_DIR` — Tùy chọn — Default CPU/GPU: `./data/history` — Nơi lưu lịch sử hội thoại.
+- `SESSION_FILE` — Thiết lập trong `docker-compose*.yml` — Default compose: `/app/data/session.json` — Nơi lưu session đăng nhập Zalo.
+- `HISTORY_DIR` — Thiết lập trong `docker-compose*.yml` — Default compose: `/app/data/history` — Nơi lưu lịch sử hội thoại.
 - `VOICE_TMP_DIR` — Tùy chọn — Default CPU/GPU: `/app/data/voice_tmp` — Thư mục file tạm voice.
 - `HF_HUB_OFFLINE` — Thiết lập trong `docker-compose*.yml` (không nằm trong `.env.example`) — Default: `"0"` — `0`: cho phép tải model từ Hub khi chưa có cache; `1`: chỉ dùng cache local (offline mode).
-- `TZ` — Tùy chọn — Default CPU/GPU: `Asia/Ho_Chi_Minh` — Timezone container.
+- `TZ` — Thiết lập trong `docker-compose*.yml` — Default compose: `Asia/Ho_Chi_Minh` — Timezone container.
 - `ACTIVE_CONV_TTL_MS` — Tùy chọn — Default CPU/GPU: `120000` — Cửa sổ active conversation (ms).
 
 ### 8) NVIDIA routing (chỉ GPU)
