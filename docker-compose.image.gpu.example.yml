@@ -27,6 +27,8 @@ services:
       VOICE_ONLY_MODE: "false"
       VOICE_HOST_URL: ""
       VOICE_SAMPLES_DIR: /app/voice_samples
+      # Sau khi đã tải xong model vào hf_cache thì có thể chuyển thành "1" để chạy offline.
+      HF_HUB_OFFLINE: "0"
     volumes:
       - ./data:/app/data
       - ./hf_cache:/app/hf_cache

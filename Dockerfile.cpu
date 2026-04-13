@@ -50,8 +50,9 @@ COPY bot.mjs voice_pipeline.py asr_local.py ./
 
 # Bundle local voice clone samples into image
 COPY voice-samples/data/ref_audio/arisu.wav voice-samples/data/ref_audio/hutao.wav voice-samples/data/ref_audio/miku.wav /app/voice_samples/
+COPY voice-samples/data/ref_audio/arisu.wav voice-samples/data/ref_audio/hutao.wav voice-samples/data/ref_audio/miku.wav /app/voice_samples_seed/
 
-RUN mkdir -p /app/data /app/data/voice_tmp /app/models /app/voice_samples
+RUN mkdir -p /app/data /app/data/voice_tmp /app/models /app/voice_samples /app/voice_samples_seed
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["node", "bot.mjs"]

@@ -59,5 +59,6 @@ voice-samples/data/ref_audio/*
 !voice-samples/data/ref_audio/arisu.wav
 !voice-samples/data/ref_audio/hutao.wav
 !voice-samples/data/ref_audio/miku.wav
+!voice-samples/data/ref_audio/ref_info.json
 test_gwen_params.py
 test_import_qwen.py

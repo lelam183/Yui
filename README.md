@@ -248,7 +248,7 @@ Quy ước:
 - `SESSION_FILE` — Tùy chọn — Default CPU/GPU: `./data/session.json` — Nơi lưu session đăng nhập Zalo.
 - `HISTORY_DIR` — Tùy chọn — Default CPU/GPU: `./data/history` — Nơi lưu lịch sử hội thoại.
 - `VOICE_TMP_DIR` — Tùy chọn — Default CPU/GPU: `/app/data/voice_tmp` — Thư mục file tạm voice.
-- `HF_HUB_OFFLINE` — Tùy chọn — Default CPU/GPU: `0` — `0`: cho phép tải model từ Hub khi chưa có cache; `1`: chỉ dùng cache local (offline mode).
+- `HF_HUB_OFFLINE` — Thiết lập trong `docker-compose*.yml` (không nằm trong `.env.example`) — Default: `"0"` — `0`: cho phép tải model từ Hub khi chưa có cache; `1`: chỉ dùng cache local (offline mode).
 - `TZ` — Tùy chọn — Default CPU/GPU: `Asia/Ho_Chi_Minh` — Timezone container.
 - `ACTIVE_CONV_TTL_MS` — Tùy chọn — Default CPU/GPU: `120000` — Cửa sổ active conversation (ms).
 
@@ -261,6 +261,17 @@ Quy ước:
 - `VIDEO_CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: để trống / CPU: không dùng — Để trống = không pin GPU riêng cho video.
 
 ## Voice sample mặc định và cách thêm voice mới
+
+### Gợi ý bật offline sau khi cache xong model
+
+Lần chạy đầu nên để `HF_HUB_OFFLINE: "0"` trong file compose để container tự tải model vào `./hf_cache`.
+Sau khi đã xác nhận voicechat chạy ổn và cache đã có dữ liệu, bạn có thể đổi sang:
+
+```yaml
+HF_HUB_OFFLINE: "1"
+```
+
+để chạy offline (không tải thêm từ Hugging Face).
 
 Image hiện kèm sẵn:
 
@@ -278,12 +289,25 @@ VIENEU_REF_AUDIO=/app/voice_samples/hutao.wav
 
 Sau đó rebuild/restart container.
 
-### Thêm giọng mới
+### Thêm/Xóa giọng mới (không cần rebuild)
 
-1. Đặt file vào `voice-samples/data/ref_audio/` (khuyên dùng `wav`/`flac`, 5-15 giây, ít noise).
-2. Thêm dòng `COPY` tương ứng trong `Dockerfile.gpu` hoặc `Dockerfile.cpu`.
-3. Build lại image.
-4. Trỏ `VIENEU_REF_AUDIO` tới file mới trong container.
+Project đã mount trực tiếp thư mục:
+
+- Host: `voice-samples/data/ref_audio/`
+- Container: `/app/voice_samples`
+
+Thư mục này có sẵn file mẫu `ref_info.json` để user tham khảo.
+
+1. Thêm hoặc xóa file audio trong `voice-samples/data/ref_audio/` (khuyên dùng `wav`/`flac`, 5-15 giây, ít noise).
+2. Trong Zalo chat với bot, chạy:
+   - `/voice reload`
+   - `/voice list`
+3. Chọn giọng bằng:
+   - `/voice <số>`
+
+Lưu ý:
+- `ref_info.json` là file hướng dẫn mẫu cho người dùng.
+- Bot hiện đọc danh sách giọng theo file audio thực tế trong thư mục (không bắt buộc parse JSON để chạy).
 
 ## Lệnh vận hành thường dùng
 

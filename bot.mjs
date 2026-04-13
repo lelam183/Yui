@@ -177,6 +177,8 @@ const VOICE_HOST_URL = VOICE_ENABLED
   ? ((process.env.VOICE_HOST_URL || "").trim().replace(/\/$/, ""))
   : "";
 const VOICE_TMP_DIR = process.env.VOICE_TMP_DIR || "/app/data/voice_tmp";
+const VOICE_SAMPLES_DIR = process.env.VOICE_SAMPLES_DIR || "/app/voice_samples";
+const VOICE_SAMPLES_SEED_DIR = process.env.VOICE_SAMPLES_SEED_DIR || "/app/voice_samples_seed";
 const VOICE_TIMEOUT_S = parseInt(process.env.VOICE_TIMEOUT_S) || 90;
 const VOICE_ONLY_MODE = process.env.VOICE_ONLY_MODE?.toLowerCase() === "true";
 const TRANSCRIPT = process.env.TRANSCRIPT?.toLowerCase() === "true";
@@ -717,27 +719,67 @@ function isVideoPipelineGpuBusy() {
   return videoGlobalActive > 0;
 }
 
-// ── Voice Registry (VieNeu presets) ───────────────────────────────────────────
-let qwenVoiceList = []; // removed custom Qwen voice packs
+// ── Voice Registry (folder voices) ────────────────────────────────────────────
+let qwenVoiceList = []; // local sample voices from mounted folder
+
+function prettifyVoiceName(fileName) {
+  const base = path.parse(String(fileName || "")).name;
+  const clean = base.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!clean) return "Voice";
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
+
+function ensureSampleVoicesSeeded() {
+  try {
+    fs.mkdirSync(VOICE_SAMPLES_DIR, { recursive: true });
+    if (!fs.existsSync(VOICE_SAMPLES_SEED_DIR)) return;
+    const allowed = new Set([".wav", ".flac", ".mp3", ".m4a", ".ogg", ".opus"]);
+    const seedFiles = fs.readdirSync(VOICE_SAMPLES_SEED_DIR)
+      .filter((f) => allowed.has(path.extname(f).toLowerCase()));
+    let copied = 0;
+    for (const name of seedFiles) {
+      const src = path.join(VOICE_SAMPLES_SEED_DIR, name);
+      const dst = path.join(VOICE_SAMPLES_DIR, name);
+      if (!fs.existsSync(dst)) {
+        fs.copyFileSync(src, dst);
+        copied += 1;
+      }
+    }
+    if (copied > 0) {
+      console.log(`[Voice] Seeded ${copied} default sample voice(s) into ${VOICE_SAMPLES_DIR}`);
+    }
+  } catch (e) {
+    console.error(`[Voice] Cannot seed default voices: ${e.message}`);
+  }
+}
 
 function loadQwenVoices() {
-  qwenVoiceList = [];
-  console.log("[Voice] Custom Qwen voices removed (VieNeu presets only)");
+  ensureSampleVoicesSeeded();
+  const allowed = new Set([".wav", ".flac", ".mp3", ".m4a", ".ogg", ".opus"]);
+  try {
+    const files = fs.readdirSync(VOICE_SAMPLES_DIR)
+      .filter((f) => allowed.has(path.extname(f).toLowerCase()))
+      .sort((a, b) => a.localeCompare(b, "vi"));
+    qwenVoiceList = files.map((f) => ({
+      key: `sample:${path.parse(f).name.toLowerCase()}`,
+      name: `${prettifyVoiceName(f)} (Clone từ file)`,
+      audioPath: path.join(VOICE_SAMPLES_DIR, f),
+      type: "sample-ref",
+    }));
+    console.log(`[Voice] Loaded ${qwenVoiceList.length} sample voices from ${VOICE_SAMPLES_DIR}`);
+  } catch (e) {
+    qwenVoiceList = [];
+    console.error(`[Voice] Failed to read ${VOICE_SAMPLES_DIR}: ${e.message}`);
+  }
 }
 
 // VieNeu built-in preset voices (populated at startup if VieNeu is available)
 let vieneuPresetVoices = []; // [{key, name, type: "vieneu-preset"}]
 
 function loadVieneuPresets() {
-  // These are the VieNeu-TTS built-in voices (hardcoded from SDK)
-  // Updated dynamically when possible via Python subprocess
-  vieneuPresetVoices = [
-    { key: "vieneu:bich_ngoc", name: "Bích Ngọc (Nữ - Miền Bắc)", type: "vieneu-preset" },
-    { key: "vieneu:pham_tuyen", name: "Phạm Tuyên (Nam - Miền Bắc)", type: "vieneu-preset" },
-    { key: "vieneu:thuc_doan", name: "Thục Đoan (Nữ - Miền Nam)", type: "vieneu-preset" },
-    { key: "vieneu:xuan_vinh", name: "Xuân Vĩnh (Nam - Miền Nam)", type: "vieneu-preset" },
-  ];
-  console.log(`[Voice] Loaded ${vieneuPresetVoices.length} VieNeu preset voices`);
+  // Keep list empty: user requested folder voices only.
+  vieneuPresetVoices = [];
+  console.log("[Voice] VieNeu preset list disabled (folder voices only)");
 }
 
 // Per-thread selected voice: Map<tid, {key, name, audioPath?, text?, type}>
@@ -767,7 +809,7 @@ function setThreadQwenVoice(tid, voiceObj) {
   }
 }
 
-// Get all available voices (VieNeu presets)
+// Get all available voices
 function getAllVoices() {
   return [...qwenVoiceList, ...vieneuPresetVoices];
 }
@@ -776,7 +818,7 @@ function getAllVoices() {
 function getEffectiveVoice(tid) {
   const selected = getThreadQwenVoice(tid);
   if (selected) return selected;
-  // Default: first custom voice, or first VieNeu preset
+  // Default: first folder voice
   const all = getAllVoices();
   return all.length > 0 ? all[0] : null;
 }
@@ -791,7 +833,7 @@ function formatVoiceList(tid) {
     const badge = v.type === "vieneu-preset" ? " 🤖" : " 🎤";
     return `  ${i + 1}. ${v.name}${badge}${marker}`;
   });
-  return `🎙️ **Danh sách giọng:**\n${lines.join("\n")}\n\n🎤 = clone từ audio | 🤖 = VieNeu preset\nDùng /voice [số] để chọn giọng.`;
+  return `🎙️ **Danh sách giọng:**\n${lines.join("\n")}\n\nDùng /voice [số] để chọn giọng.`;
 }
 
 // ── NOTE: Voice files are sent via sendMessage({ attachments: [filePath] }) ──
@@ -817,10 +859,10 @@ async function generateHutaoVoice(text, tid = null) {
       "--format",
       VOICE_OUTPUT_EXT,
     ];
-    // Pass selected voice via CLI args (VieNeu preset key)
+    // Pass selected voice via CLI args
     if (voice) {
       if (voice.type === "vieneu-preset") {
-        // VieNeu presets: pass the key (e.g. "vieneu:xuan_vinh") as --ref-audio
+        // Preset key mode (kept for backward compatibility)
         args.push("--ref-audio", voice.key);
       } else if (voice.audioPath) {
         // Custom voices: pass the audio file path
@@ -3147,7 +3189,7 @@ VOICE:
 @yui /voice [số]           - Chọn giọng
 @yui /voice reset          - Reset giọng về mặc định của bot
 @yui /voice memory         - Xem transcript voice gần đây (debug)
-@yui /voice reload         - Reload giọng từ ref_info + preset
+@yui /voice reload         - Reload giọng từ thư mục voice
 @yui /voice                - Xem trạng thái
 
 TÀI LIỆU (/rag):
@@ -4791,9 +4833,11 @@ async function handleMessage(api, message) {
                   const sendAsVoiceUrl = async (preferNative = true) => {
                     if (!VOICE_HOST_URL) throw new Error("VOICE_HOST_URL not set");
                     let voiceFileForSend = filePath;
-                    if (preferNative && VOICE_NATIVE_EMULATION) {
+                    if (preferNative && VOICE_NATIVE_EMULATION && VOICE_OUTPUT_EXT === "ogg") {
                       const ogg = await transcodeToNativeVoiceOgg(filePath);
                       if (ogg) voiceFileForSend = ogg;
+                    } else if (preferNative && VOICE_NATIVE_EMULATION && VOICE_OUTPUT_EXT !== "ogg") {
+                      console.log(`  [Voice] Respect VOICE_OUTPUT_EXT=${VOICE_OUTPUT_EXT}, skip native ogg clone`);
                     }
                     const voiceUrl = (voiceFileForSend === filePath) ? publicUrl : registerVoiceFile(voiceFileForSend);
                     const durationMs = await probeDurationMs(voiceFileForSend);
@@ -4940,9 +4984,11 @@ async function handleMessage(api, message) {
     const sendAsVoiceUrl = async (preferNative = true) => {
       if (!VOICE_HOST_URL) throw new Error("VOICE_HOST_URL not set");
       let voiceFileForSend = filePath;
-      if (preferNative && VOICE_NATIVE_EMULATION) {
+      if (preferNative && VOICE_NATIVE_EMULATION && VOICE_OUTPUT_EXT === "ogg") {
         const ogg = await transcodeToNativeVoiceOgg(filePath);
         if (ogg) voiceFileForSend = ogg;
+      } else if (preferNative && VOICE_NATIVE_EMULATION && VOICE_OUTPUT_EXT !== "ogg") {
+        console.log(`  [VoiceDebug] Respect VOICE_OUTPUT_EXT=${VOICE_OUTPUT_EXT}, skip native ogg clone`);
       }
       const voiceUrl = (voiceFileForSend === filePath) ? publicUrl : registerVoiceFile(voiceFileForSend);
       const durationMs = await probeDurationMs(voiceFileForSend);
@@ -5262,7 +5308,7 @@ ${desc}
           loadQwenVoices();
           loadVieneuPresets();
           const total = getAllVoices().length;
-          await api.sendMessage({ msg: `✅ Đã reload ${total} giọng VieNeu preset.\nDùng /voice list để xem.`, quote: message.data }, tid, message.type);
+          await api.sendMessage({ msg: `✅ Đã reload ${total} giọng từ thư mục voice.\nDùng /voice list để xem.`, quote: message.data }, tid, message.type);
         } else if (voiceArgLower === "reset") {
           setThreadQwenVoice(tid, null);
           const cur = getEffectiveVoice(tid);
@@ -5664,7 +5710,7 @@ ${desc}
         loadQwenVoices();
         loadVieneuPresets();
         const total = getAllVoices().length;
-        await api.sendMessage({ msg: `✅ Đã reload ${total} giọng VieNeu preset.\nDùng /voice list để xem.`, quote: message.data }, tid, message.type);
+        await api.sendMessage({ msg: `✅ Đã reload ${total} giọng từ thư mục voice.\nDùng /voice list để xem.`, quote: message.data }, tid, message.type);
       } else if (voiceArgLower === "reset") {
         setThreadQwenVoice(tid, null);
         const cur = getEffectiveVoice(tid);
