@@ -186,9 +186,9 @@ const VOICE_NATIVE_EMULATION = (process.env.VOICE_NATIVE_EMULATION || "true").tr
 const VOICE_NATIVE_TTL_MS = Math.max(1000, parseInt(process.env.VOICE_NATIVE_TTL_MS || "60000", 10) || 60000);
 const VOICE_FILE_TTL_HOURS = Math.max(0, parseInt(process.env.VOICE_FILE_TTL_HOURS || "720", 10) || 720);
 const VOICE_FILE_TTL_MS = VOICE_FILE_TTL_HOURS * 60 * 60 * 1000;
-const RAW_VOICE_OUTPUT_EXT = (process.env.VOICE_OUTPUT_EXT || "m4a").trim().toLowerCase().replace(/^\./, "");
+const RAW_VOICE_OUTPUT_EXT = (process.env.VOICE_OUTPUT_EXT || "aac").trim().toLowerCase().replace(/^\./, "");
 const ALLOWED_VOICE_OUTPUT_EXT = new Set(["m4a", "ogg", "mp3", "aac", "wav", "opus"]);
-const VOICE_OUTPUT_EXT = ALLOWED_VOICE_OUTPUT_EXT.has(RAW_VOICE_OUTPUT_EXT) ? RAW_VOICE_OUTPUT_EXT : "m4a";
+const VOICE_OUTPUT_EXT = ALLOWED_VOICE_OUTPUT_EXT.has(RAW_VOICE_OUTPUT_EXT) ? RAW_VOICE_OUTPUT_EXT : "aac";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms || 0)));
 
 function withCudaRouting(baseEnv, cudaVisibleDevices) {
@@ -846,7 +846,24 @@ async function generateHutaoVoice(text, tid = null) {
       + `CUDA_VISIBLE_DEVICES=${voiceEnv.CUDA_VISIBLE_DEVICES || "default"} `
       + `VIENEU_GPU_ENABLED=${voiceEnv.VIENEU_GPU_ENABLED || "unset"}`
     );
+    voiceEnv = {
+      ...voiceEnv,
+      PYTHONFAULTHANDLER: "1",
+    };
+    console.log(
+      `[Voice] exec=python3 /app/voice_pipeline.py format=${VOICE_OUTPUT_EXT} `
+      + `ref=${voice?.key || voice?.audioPath || "none"}`
+    );
     const py = spawn("python3", args, { env: voiceEnv });
+
+    py.stdout.on("data", d => {
+      const lines = d.toString().split('\n');
+      for (const line of lines) {
+        if (line.trim()) {
+          console.log(`[PythonOut] ${line.trim()}`);
+        }
+      }
+    });
 
     py.stderr.on("data", d => {
       const lines = d.toString().split('\n');
@@ -857,11 +874,11 @@ async function generateHutaoVoice(text, tid = null) {
       }
     });
 
-    py.on("close", (code) => {
+    py.on("close", (code, signal) => {
       if (resolved) return;
       resolved = true;
       if (code !== 0 || !fs.existsSync(outPath) || fs.statSync(outPath).size < 500) {
-        console.error(`[Voice] pipeline exit=${code}, file=${fs.existsSync(outPath)}`);
+        console.error(`[Voice] pipeline exit=${code} signal=${signal || "none"}, file=${fs.existsSync(outPath)}`);
         return resolve(null);
       }
 

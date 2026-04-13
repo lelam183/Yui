@@ -59,7 +59,7 @@ docker compose -f docker-compose.cpu.example.yml up -d
 Nếu muốn chạy cả Cloudflare Tunnel cùng lúc:
 
 ```bash
-docker compose -f docker-compose.cpu.example.yml --profile tunnel up -d
+docker compose -f docker-compose.cpu.example.yml up -d
 ```
 
 #### GPU
@@ -75,7 +75,7 @@ docker compose -f docker-compose.gpu.example.yml up -d
 Nếu muốn chạy cả Cloudflare Tunnel cùng lúc:
 
 ```bash
-docker compose -f docker-compose.gpu.example.yml --profile tunnel up -d
+docker compose -f docker-compose.gpu.example.yml up -d
 ```
 
 ## Hướng dẫn scan mã QR đăng nhập
@@ -102,6 +102,13 @@ Nếu gặp lỗi `the --mount option requires BuildKit` hoặc `buildx componen
 
 ```bash
 docker buildx build --load -f Dockerfile.cpu -t zalo-ai:cpu .
+```
+
+Các Dockerfile hiện đã preload sẵn model VieNeu trong lúc build để giảm lỗi "không có voice" khi chạy lần đầu.
+Nếu muốn bỏ preload (để build nhanh hơn), thêm build-arg:
+
+```bash
+docker buildx build --load --build-arg PRELOAD_VIENEU=false -f Dockerfile.cpu -t zalo-ai:cpu .
 ```
 
 #### CPU nhẹ (dùng `Dockerfile.cpu`)
@@ -138,6 +145,25 @@ Quy ước:
 - **Bắt buộc**: cần set để bot chạy đúng.
 - **Default CPU/GPU**: giá trị mặc định trong `.env.cpu.example` và `.env.gpu.example`.
 
+### Bảng tra nhanh (option quan trọng)
+
+| Biến | Option có thể dùng | Default env | Default code fallback | Dùng để làm gì |
+|---|---|---|---|---|
+| `VOICE_SEND_METHOD` | `voice_url_first` \| `attachment_first` \| `both` \| `zalo_native_like` \| `triple_redundant` | `voice_url_first` | `attachment_first` | Chọn chiến lược gửi voice message về Zalo |
+| `VOICE_OUTPUT_EXT` | `m4a` \| `ogg` \| `mp3` \| `aac` \| `wav` \| `opus` | `aac` | `aac` | Chọn định dạng file voice đầu ra |
+| `LOCAL_ASR_DEVICE` | `cpu` \| `cuda` | CPU: `cpu` / GPU: `cuda` | `cpu` | Chọn thiết bị chạy ASR local |
+| `LOCAL_ASR_COMPUTE` | `int8` \| `float16` \| `float32` | CPU: `int8` / GPU: `float16` | `float32` | Chọn compute type cho ASR |
+| `LOCAL_ASR_LANG` | `auto` hoặc mã ngôn ngữ (`vi`, `en`, `ja`,...) | `auto` | `auto` | Chọn ngôn ngữ nhận diện giọng nói |
+| `VIDEO_AI_PROVIDER` | `gemini` | `gemini` | ép cứng `gemini` | Chọn backend phân tích video |
+| `VIENEU_MODE` | `turbo` (hiện dùng chính) | `turbo` | (không fallback trong code) | Chọn chế độ chạy VieNeu |
+| `VIENEU_GPU_ENABLED` | `true` \| `false` | CPU: `false` / GPU: `true` | `false` | Bật/tắt tăng tốc GPU cho TTS |
+| `VOICE_ENABLED` | `true` \| `false` | `false` | `false` | Bật/tắt trả lời bằng voice |
+| `VOICE_ONLY_MODE` | `true` \| `false` | `false` | `false` | Chỉ gửi voice, không kèm text |
+| `TRANSCRIPT` | `true` \| `false` | `false` | `false` | Có gửi transcript text sau voice hay không |
+| `VIDEO_FORCE_CPU` | `true` \| `false` | CPU: `true` / GPU: `false` | `false` | Ép pipeline video/ASR chạy CPU |
+| `NVIDIA_VISIBLE_DEVICES` | `all` hoặc danh sách id (`0`, `0,1`) | GPU: `all` | (không fallback trong code) | Chọn GPU expose cho container |
+| `CUDA_VISIBLE_DEVICES` | `all` hoặc danh sách id (`0`, `0,1`) | GPU: `all` | (không fallback trong code) | Chọn GPU CUDA sử dụng |
+
 ### 1) Gemini API và model
 
 - `GEMINI_API_KEY` — **Bắt buộc** — Default CPU/GPU: `your_gemini_api_key_1,your_gemini_api_key_2` — Danh sách API key Gemini (hỗ trợ nhiều key, ngăn cách dấu phẩy).
@@ -161,7 +187,7 @@ Quy ước:
 ### 3) Video + ASR local
 
 - `VIDEO_AI_ENABLED` — Tùy chọn — Default CPU/GPU: `true` — Bật phân tích video.
-- `VIDEO_AI_PROVIDER` — Tùy chọn — Default CPU/GPU: `gemini` — Provider phân tích video.
+- `VIDEO_AI_PROVIDER` — Tùy chọn — Default CPU/GPU: `gemini` — Provider phân tích video. Option hiện hỗ trợ: `gemini`.
 - `GEMINI_VIDEO_MODELS` — Tùy chọn — Default CPU/GPU: `gemini-2.5-flash-lite,gemini-3.1-flash-lite-preview,gemini-2.5-flash,gemini-3-flash-preview` — Danh sách model video fallback.
 - `GEMINI_VIDEO_MODEL` — Tùy chọn — Default CPU/GPU: (rỗng) — Ép dùng 1 model video cố định.
 - `GEMINI_VIDEO_TIMEOUT_MS` — Tùy chọn — Default CPU/GPU: `90000` — Timeout gọi Gemini video (ms).
@@ -178,8 +204,8 @@ Quy ước:
 - `LOCAL_ASR_BEAM_SIZE` — Tùy chọn — Default CPU/GPU: `5` — Beam size cho decode ASR.
 - `LOCAL_ASR_OOM_FALLBACK_CPU` — Tùy chọn — Default CPU/GPU: `true` — Tự fallback CPU nếu ASR GPU bị OOM.
 - `LOCAL_ASR_CPU_COMPUTE` — Tùy chọn — Default CPU/GPU: `int8` — Compute type cho ASR khi chạy CPU.
-- `LOCAL_ASR_DEVICE` — Tùy chọn — Default CPU: `cpu` / GPU: `cuda` — Device ASR chính.
-- `LOCAL_ASR_COMPUTE` — Tùy chọn — Default CPU: `int8` / GPU: `float16` — Compute type theo device ASR.
+- `LOCAL_ASR_DEVICE` — Tùy chọn — Default CPU: `cpu` / GPU: `cuda` — Device ASR chính. Option thường dùng: `cpu|cuda`.
+- `LOCAL_ASR_COMPUTE` — Tùy chọn — Default CPU: `int8` / GPU: `float16` — Compute type theo device ASR. Option thường dùng: `int8|float16|float32`.
 
 ### 4) Voice/TTS
 
@@ -187,8 +213,8 @@ Quy ước:
 - `VOICE_ONLY_MODE` — Tùy chọn — Default CPU/GPU: `false` — Ưu tiên chỉ gửi voice (không kèm text).
 - `TRANSCRIPT` — Tùy chọn — Default CPU/GPU: `false` — Có gửi transcript text sau voice hay không.
 - `TRANSCRIPT_DELAY_MS` — Tùy chọn — Default CPU/GPU: `1000` — Delay gửi transcript (ms).
-- `VOICE_SEND_METHOD` — Tùy chọn — Default CPU/GPU: `voice_url_first` — Chiến lược gửi voice về Zalo.
-- `VOICE_OUTPUT_EXT` — Tùy chọn — Default CPU/GPU: `m4a` — Định dạng file output (`m4a|ogg|mp3|aac|wav|opus`).
+- `VOICE_SEND_METHOD` — Tùy chọn — Default CPU/GPU: `voice_url_first` (mặc định trong code khi thiếu env: `attachment_first`) — Chiến lược gửi voice về Zalo. Option: `voice_url_first|attachment_first|both|zalo_native_like|triple_redundant`.
+- `VOICE_OUTPUT_EXT` — Tùy chọn — Default CPU/GPU: `aac` — Định dạng file output. Option: `m4a|ogg|mp3|aac|wav|opus`.
 - `VOICE_NATIVE_EMULATION` — Tùy chọn — Default CPU/GPU: `true` — Bật chế độ giả lập voice native.
 - `VOICE_NATIVE_TTL_MS` — Tùy chọn — Default CPU/GPU: `60000` — TTL cho chế độ native emulation (ms).
 - `VIENEU_MAX_STRETCH_RATIO` — Tùy chọn — Default CPU/GPU: `2.6` — Ngưỡng co giãn thời lượng audio của VieNeu.
@@ -196,6 +222,8 @@ Quy ước:
 - `VOICE_HOST_URL` — **Khuyên dùng (gần như bắt buộc khi gửi voice qua URL)** — Default CPU/GPU: (rỗng) — URL public để client Zalo tải voice.
 - `VOICE_TIMEOUT_S` — Tùy chọn — Default CPU/GPU: `300` — Timeout pipeline voice (giây).
 - `VOICE_FILE_TTL_HOURS` — Tùy chọn — Default CPU/GPU: `720` — Thời gian giữ file voice đã tạo (giờ).
+- `QR_PORT` — Tùy chọn — Default từ code: `3000` — Cổng local để mở trang QR đăng nhập.
+- `QR_FILE` — Tùy chọn — Default từ code: `./data/qr.png` — Đường dẫn file PNG chứa mã QR đăng nhập.
 
 ### 5) VieNeu TTS
 
@@ -216,6 +244,7 @@ Quy ước:
 - `SESSION_FILE` — Tùy chọn — Default CPU/GPU: `./data/session.json` — Nơi lưu session đăng nhập Zalo.
 - `HISTORY_DIR` — Tùy chọn — Default CPU/GPU: `./data/history` — Nơi lưu lịch sử hội thoại.
 - `VOICE_TMP_DIR` — Tùy chọn — Default CPU/GPU: `/app/data/voice_tmp` — Thư mục file tạm voice.
+- `HF_HUB_OFFLINE` — Tùy chọn — Default CPU/GPU: `0` — `0`: cho phép tải model từ Hub khi chưa có cache; `1`: chỉ dùng cache local (offline mode).
 - `TZ` — Tùy chọn — Default CPU/GPU: `Asia/Ho_Chi_Minh` — Timezone container.
 - `ACTIVE_CONV_TTL_MS` — Tùy chọn — Default CPU/GPU: `120000` — Cửa sổ active conversation (ms).
 

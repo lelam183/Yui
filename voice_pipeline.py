@@ -13,13 +13,39 @@ import sys
 import tempfile
 import traceback
 
-os.environ["HF_HUB_OFFLINE"] = "1"
+# Mặc định cho phép tải model nếu chưa có cache local.
+# Có thể set HF_HUB_OFFLINE=1 từ môi trường để ép offline mode.
+os.environ.setdefault("HF_HUB_OFFLINE", "0")
 os.environ["ORT_LOGGING_LEVEL"] = "3" # Suppress ONNX Runtime warnings
+
+
+def log_runtime_diag() -> None:
+    try:
+        print(f"[voice_pipeline] python={sys.version.split()[0]} platform={sys.platform}", file=sys.stderr)
+        print(
+            "[voice_pipeline] env "
+            f"HF_HUB_OFFLINE={os.environ.get('HF_HUB_OFFLINE', '')} "
+            f"USE_VIENEU_TTS={os.environ.get('USE_VIENEU_TTS', '')} "
+            f"VIENEU_GPU_ENABLED={os.environ.get('VIENEU_GPU_ENABLED', '')}",
+            file=sys.stderr,
+        )
+        cpu_flags = "unknown"
+        if os.path.exists("/proc/cpuinfo"):
+            with open("/proc/cpuinfo", "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    if line.lower().startswith("flags"):
+                        parts = line.split(":", 1)
+                        if len(parts) == 2:
+                            cpu_flags = " ".join(parts[1].strip().split()[:30])
+                        break
+        print(f"[voice_pipeline] cpu_flags={cpu_flags}", file=sys.stderr)
+    except Exception as e:
+        print(f"[voice_pipeline] diag error: {e}", file=sys.stderr)
 
 
 def convert_audio(input_path: str, output_path: str, fmt: str) -> bool:
     try:
-        f = (fmt or "m4a").strip().lower().replace(".", "")
+        f = (fmt or "aac").strip().lower().replace(".", "")
         codec_map = {
             "m4a": ["-c:a", "aac", "-b:a", "64k", "-profile:a", "aac_low", "-f", "mp4"],
             "aac": ["-c:a", "aac", "-b:a", "64k", "-f", "adts"],
@@ -29,7 +55,7 @@ def convert_audio(input_path: str, output_path: str, fmt: str) -> bool:
             "wav": ["-c:a", "pcm_s16le", "-f", "wav"],
         }
         if f not in codec_map:
-            f = "m4a"
+            f = "aac"
         cmd = [
             "ffmpeg", "-y", "-i", input_path,
             "-ar", "16000", "-ac", "1",
@@ -57,6 +83,11 @@ def vieneu_tts_to_wav(text: str, out_wav: str, ref_audio_override: str | None = 
 
     try:
         from vieneu import Vieneu
+        try:
+            import vieneu
+            print(f"[voice_pipeline] vieneu_version={getattr(vieneu, '__version__', 'unknown')}", file=sys.stderr)
+        except Exception:
+            pass
     except ImportError:
         print("[voice_pipeline] vieneu not installed", file=sys.stderr)
         return False
@@ -116,11 +147,18 @@ def vieneu_tts_to_wav(text: str, out_wav: str, ref_audio_override: str | None = 
 
 
 def main():
+    try:
+        import faulthandler
+        faulthandler.enable(file=sys.stderr, all_threads=True)
+    except Exception:
+        pass
+    log_runtime_diag()
+
     parser = argparse.ArgumentParser()
     parser.add_argument("text", help="Text to synthesize")
     parser.add_argument("output", help="Output file path")
     parser.add_argument("--ref-audio", default=None, help="Override VIENEU_REF_AUDIO")
-    parser.add_argument("--format", default=os.environ.get("VOICE_OUTPUT_EXT", "m4a"), help="m4a|ogg|mp3|aac|wav|opus")
+    parser.add_argument("--format", default=os.environ.get("VOICE_OUTPUT_EXT", "aac"), help="m4a|ogg|mp3|aac|wav|opus")
     args = parser.parse_args()
 
     text = (args.text or "").strip()
@@ -136,7 +174,7 @@ def main():
             print("[voice_pipeline] ERROR: VieNeu TTS failed", file=sys.stderr)
             sys.exit(1)
 
-        out_ext = (args.format or "m4a").strip().lower().replace(".", "")
+        out_ext = (args.format or "aac").strip().lower().replace(".", "")
         out_audio = os.path.join(tmpdir, f"out.{out_ext}")
         if convert_audio(wav_path, out_audio, out_ext):
             shutil.copy(out_audio, args.output)

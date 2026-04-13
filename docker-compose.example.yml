@@ -23,14 +23,15 @@ services:
       VIENEU_GPU_ENABLED: "false"
       NVIDIA_VISIBLE_DEVICES: ""
       CUDA_VISIBLE_DEVICES: ""
+      VOICE_SAMPLES_DIR: /app/voice_samples
     volumes:
       - ./data:/app/data
       - ./hf_cache:/app/hf_cache
       - ./torch_cache:/app/torch_cache
       - ./models:/app/models
+      - ./voice-samples/data/ref_audio:/app/voice_samples
 
   tunnel:
-    profiles: ["tunnel"]
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
     command: tunnel run

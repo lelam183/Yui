@@ -25,15 +25,16 @@ services:
       VOICE_ENABLED: "false"
       VOICE_ONLY_MODE: "false"
       VOICE_HOST_URL: ""
+      VOICE_SAMPLES_DIR: /app/voice_samples
     volumes:
       - ./data:/app/data
       - ./hf_cache:/app/hf_cache
       - ./torch_cache:/app/torch_cache
       - ./models:/app/models
+      - ./voice-samples/data/ref_audio:/app/voice_samples
 
   # Bỏ comment để phát VOICE_HOST_URL ra URL công khai qua Cloudflare Tunnel:
   # tunnel:
-  #   profiles: ["tunnel"]
   #   image: cloudflare/cloudflared:latest
   #   restart: unless-stopped
   #   command: tunnel run

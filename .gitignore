@@ -17,6 +17,8 @@ docker-compose.gpu.yml
 data/
 !data/.gitkeep
 !data/.gitignore
+data-backup/
+hf_cache-backup/
 
 # Local generated artifacts
 *.log
@@ -49,6 +51,7 @@ Thumbs.db
 
 # Voice sample assets
 voice-samples/*
+!voice-samples/ref_info.json
 !voice-samples/data/
 voice-samples/data/*
 !voice-samples/data/ref_audio/

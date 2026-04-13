@@ -115,6 +115,15 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip3 install --break-system-packages \
     'vieneu[gpu]'
 
+# Preload VieNeu model during image build so first runtime TTS is ready.
+# Use CPU for preload to keep build portable across hosts.
+ARG PRELOAD_VIENEU=true
+ENV HF_HUB_OFFLINE=0
+RUN --mount=type=cache,target=/app/hf_cache \
+    if [ "$PRELOAD_VIENEU" = "true" ]; then \
+      python3 -c "from vieneu import Vieneu; tts = Vieneu(device='cpu'); audio = tts.infer(text='Xin chao, preload model.'); tts.save(audio, '/tmp/vieneu_preload.wav'); print('[Docker] VieNeu preload OK')"; \
+    fi
+
 # ────────────────────────────────────────────────────────────────────────────────
 # LAYER 9.5: Re-pin NVIDIA libs (prevent dependency downgrades)
 # Some later pip installs can downgrade/overwrite cuDNN; force the final image to
