@@ -29,11 +29,25 @@ ENV HF_HOME=/app/hf_cache \
 # CPU-only Python stack (lighter than GPU image)
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip3 install --break-system-packages \
-    "numpy>=1.26,<3" "pillow>=10.0.0" soundfile scipy
+    "numpy>=1.26,<3" "pillow>=10.0.0" soundfile scipy librosa
 
+# CPU-safe pin set for better compatibility on older/consumer CPUs.
+ARG VIENEU_VERSION=2.2.0
+ARG ONNXRUNTIME_VERSION=1.20.1
+ARG CTRANSLATE2_VERSION=4.4.0
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip3 install --break-system-packages \
-    faster-whisper yt-dlp onnxruntime vieneu
+    faster-whisper yt-dlp \
+    "onnxruntime==${ONNXRUNTIME_VERSION}" \
+    "ctranslate2==${CTRANSLATE2_VERSION}" \
+    "vieneu==${VIENEU_VERSION}"
+
+# Rebuild llama-cpp-python for broader CPU compatibility on consumer CPUs.
+# Avoid AVX-512/native tuning that can trigger SIGILL on some machines.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 uninstall -y --break-system-packages llama-cpp-python && \
+    CMAKE_ARGS="-DGGML_AVX512=OFF -DGGML_AVX2=ON -DGGML_NATIVE=OFF -DGGML_FMA=ON" \
+    pip3 install --break-system-packages --no-binary llama-cpp-python llama-cpp-python
 
 # Preload VieNeu model during image build so first runtime TTS is ready.
 ARG PRELOAD_VIENEU=true

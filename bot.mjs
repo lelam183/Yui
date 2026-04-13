@@ -852,7 +852,7 @@ async function generateHutaoVoice(text, tid = null) {
   const voice = tid ? getEffectiveVoice(tid) : null;
 
   return new Promise((resolve) => {
-    const args = [
+    const baseArgs = [
       "/app/voice_pipeline.py",
       text,
       outPath,
@@ -863,14 +863,12 @@ async function generateHutaoVoice(text, tid = null) {
     if (voice) {
       if (voice.type === "vieneu-preset") {
         // Preset key mode (kept for backward compatibility)
-        args.push("--ref-audio", voice.key);
+        baseArgs.push("--ref-audio", voice.key);
       } else if (voice.audioPath) {
         // Custom voices: pass the audio file path
-        args.push("--ref-audio", voice.audioPath);
+        baseArgs.push("--ref-audio", voice.audioPath);
       }
     }
-
-    let resolved = false;
 
     const videoBusy = isVideoPipelineGpuBusy();
     let voiceEnv = withCudaRouting(process.env, VOICE_CUDA_VISIBLE_DEVICES);
@@ -896,31 +894,27 @@ async function generateHutaoVoice(text, tid = null) {
       `[Voice] exec=python3 /app/voice_pipeline.py format=${VOICE_OUTPUT_EXT} `
       + `ref=${voice?.key || voice?.audioPath || "none"}`
     );
-    const py = spawn("python3", args, { env: voiceEnv });
-
-    py.stdout.on("data", d => {
-      const lines = d.toString().split('\n');
-      for (const line of lines) {
-        if (line.trim()) {
-          console.log(`[PythonOut] ${line.trim()}`);
-        }
-      }
+    const runPipeline = () => new Promise((r) => {
+      const py = spawn("python3", baseArgs, { env: voiceEnv });
+      py.stdout.on("data", d => {
+        const lines = d.toString().split('\n');
+        for (const line of lines) if (line.trim()) console.log(`[PythonOut] ${line.trim()}`);
+      });
+      py.stderr.on("data", d => {
+        const lines = d.toString().split('\n');
+        for (const line of lines) if (line.trim()) console.log(`[Python] ${line.trim()}`);
+      });
+      py.on("error", (e) => r({ code: null, signal: "SPAWN_ERROR", err: e.message }));
+      py.on("close", (code, signal) => r({ code, signal: signal || "none" }));
+      setTimeout(() => {
+        try { py.kill("SIGTERM"); } catch { }
+      }, VOICE_TIMEOUT_S * 1000);
     });
 
-    py.stderr.on("data", d => {
-      const lines = d.toString().split('\n');
-      for (const line of lines) {
-        if (line.trim()) {
-          console.log(`[Python] ${line.trim()}`);
-        }
-      }
-    });
-
-    py.on("close", (code, signal) => {
-      if (resolved) return;
-      resolved = true;
-      if (code !== 0 || !fs.existsSync(outPath) || fs.statSync(outPath).size < 500) {
-        console.error(`[Voice] pipeline exit=${code} signal=${signal || "none"}, file=${fs.existsSync(outPath)}`);
+    (async () => {
+      const result = await runPipeline();
+      if (result.code !== 0 || !fs.existsSync(outPath) || fs.statSync(outPath).size < 500) {
+        console.error(`[Voice] pipeline exit=${result.code} signal=${result.signal}, file=${fs.existsSync(outPath)}`);
         return resolve(null);
       }
 
@@ -933,22 +927,10 @@ async function generateHutaoVoice(text, tid = null) {
 
       console.log(`[Voice] OK → ${outPath}`);
       resolve(outPath);
-    });
-
-    py.on("error", (e) => {
-      if (resolved) return;
-      resolved = true;
-      console.error(`[Voice] spawn error: ${e.message}`);
+    })().catch((e) => {
+      console.error(`[Voice] pipeline exception: ${e.message}`);
       resolve(null);
     });
-
-    setTimeout(() => {
-      if (resolved) return;
-      resolved = true;
-      console.error(`[Voice] timeout ${VOICE_TIMEOUT_S}s`);
-      try { py.kill("SIGTERM"); } catch { }
-      resolve(null);
-    }, VOICE_TIMEOUT_S * 1000);
   });
 }
 

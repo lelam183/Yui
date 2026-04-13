@@ -126,6 +126,25 @@ cp docker-compose.image.cpu.example.yml docker-compose.yml
 docker compose up -d --build
 ```
 
+Nếu máy local gặp lỗi `SIGILL` khi init VieNeu, build lại với bộ pin CPU-safe:
+
+```bash
+docker build -f Dockerfile.cpu \
+  --build-arg VIENEU_VERSION=2.2.0 \
+  --build-arg ONNXRUNTIME_VERSION=1.19.2 \
+  --build-arg CTRANSLATE2_VERSION=4.4.0 \
+  -t zalo-ai:cpu .
+```
+
+Thêm nữa, với CPU consumer Intel/AMD nên giữ các env này trong compose để tránh nhảy vào ISA quá mới:
+
+```yaml
+CT2_FORCE_CPU_ISA: AVX2
+ONEDNN_MAX_CPU_ISA: AVX2
+ONEDNN_CPU_ISA_HINTS: PREFER_YMM
+MKL_ENABLE_INSTRUCTIONS: AVX2
+```
+
 #### GPU (dùng `Dockerfile.gpu`)
 
 ```bash

@@ -16,6 +16,10 @@ services:
       VIENEU_GPU_ENABLED: "false"
       NVIDIA_VISIBLE_DEVICES: ""
       CUDA_VISIBLE_DEVICES: ""
+      CT2_FORCE_CPU_ISA: AVX2
+      ONEDNN_MAX_CPU_ISA: AVX2
+      ONEDNN_CPU_ISA_HINTS: PREFER_YMM
+      MKL_ENABLE_INSTRUCTIONS: AVX2
       # Voicechat đang TẮT mặc định trong file mẫu này.
       # Muốn bật voicechat: đặt VOICE_ENABLED=true, đặt VOICE_HOST_URL hợp lệ,
       # rồi chạy kèm profile tunnel (hoặc dùng reverse proxy công khai của riêng bạn).

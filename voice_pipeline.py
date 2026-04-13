@@ -19,6 +19,14 @@ import traceback
 # Có thể set HF_HUB_OFFLINE=1 từ môi trường để ép offline mode.
 os.environ.setdefault("HF_HUB_OFFLINE", "0")
 os.environ["ORT_LOGGING_LEVEL"] = "3" # Suppress ONNX Runtime warnings
+# CPU-consumer safety defaults:
+# - oneDNN dispatcher: cap ISA to AVX2 and prefer YMM
+# - MKL: avoid selecting newer instruction paths than AVX2
+# - CTranslate2: force AVX2 ISA
+os.environ.setdefault("ONEDNN_MAX_CPU_ISA", "AVX2")
+os.environ.setdefault("ONEDNN_CPU_ISA_HINTS", "PREFER_YMM")
+os.environ.setdefault("MKL_ENABLE_INSTRUCTIONS", "AVX2")
+os.environ.setdefault("CT2_FORCE_CPU_ISA", "AVX2")
 
 
 def log_runtime_diag() -> None:
@@ -28,7 +36,11 @@ def log_runtime_diag() -> None:
             "[voice_pipeline] env "
             f"HF_HUB_OFFLINE={os.environ.get('HF_HUB_OFFLINE', '')} "
             f"USE_VIENEU_TTS={os.environ.get('USE_VIENEU_TTS', '')} "
-            f"VIENEU_GPU_ENABLED={os.environ.get('VIENEU_GPU_ENABLED', '')}",
+            f"VIENEU_GPU_ENABLED={os.environ.get('VIENEU_GPU_ENABLED', '')} "
+            f"ONEDNN_MAX_CPU_ISA={os.environ.get('ONEDNN_MAX_CPU_ISA', '')} "
+            f"ONEDNN_CPU_ISA_HINTS={os.environ.get('ONEDNN_CPU_ISA_HINTS', '')} "
+            f"MKL_ENABLE_INSTRUCTIONS={os.environ.get('MKL_ENABLE_INSTRUCTIONS', '')} "
+            f"CT2_FORCE_CPU_ISA={os.environ.get('CT2_FORCE_CPU_ISA', '')}",
             file=sys.stderr,
         )
         cpu_flags = "unknown"
@@ -38,7 +50,7 @@ def log_runtime_diag() -> None:
                     if line.lower().startswith("flags"):
                         parts = line.split(":", 1)
                         if len(parts) == 2:
-                            cpu_flags = " ".join(parts[1].strip().split()[:30])
+                            cpu_flags = parts[1].strip()
                         break
         print(f"[voice_pipeline] cpu_flags={cpu_flags}", file=sys.stderr)
     except Exception as e:
