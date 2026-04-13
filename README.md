@@ -51,8 +51,6 @@ Bot chat nhóm Zalo, hỗ trợ hội thoại tự nhiên, phân tích ảnh/vid
 
 #### CPU
 
-Image dùng sẵn: `ghcr.io/lam183/zalo-ai-cpu:latest`
-
 ```bash
 cp .env.cpu.example .env
 # sửa GEMINI_API_KEY, CLOUDFLARE_TUNNEL_TOKEN, VOICE_HOST_URL...
@@ -68,7 +66,6 @@ docker compose -f docker-compose.image.cpu.example.yml --profile tunnel up -d --
 #### GPU
 
 Yêu cầu host có NVIDIA driver + `nvidia-container-toolkit`.
-Image dùng sẵn: `ghcr.io/lam183/zalo-ai-gpu:latest`
 
 ```bash
 cp .env.gpu.example .env
@@ -114,7 +111,7 @@ docker compose -f docker-compose.image.cpu.example.yml up -d --build
 ```bash
 cp .env.gpu.example .env
 docker build -f Dockerfile.gpu -t zalo-ai:gpu .
-docker compose -f docker-compose.image.gpu.example.yml up -d
+docker compose -f docker-compose.image.gpu.example.yml up -d --build
 ```
 
 ## Vì sao cần Cloudflare Tunnel?

@@ -1,6 +1,9 @@
 services:
   bot:
-    image: ghcr.io/lam183/zalo-ai-cpu:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    image: zalo-ai:cpu
     restart: unless-stopped
     env_file:
       - .env

@@ -1,9 +1,6 @@
 services:
   bot:
-    build:
-      context: .
-      dockerfile: Dockerfile.gpu
-    image: zalo-ai:gpu
+    image: ghcr.io/lam183/zalo-ai-cpu:latest
     restart: unless-stopped
     env_file:
       - .env
@@ -15,11 +12,10 @@ services:
       SESSION_FILE: /app/data/session.json
       HISTORY_DIR: /app/data/history
       DB_PATH: /app/data/history/bot.db
-      # GPU mode
-      VIENEU_GPU_ENABLED: ${VIENEU_GPU_ENABLED:-true}
-      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
-      CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-all}
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      # CPU mode
+      VIENEU_GPU_ENABLED: "false"
+      NVIDIA_VISIBLE_DEVICES: ""
+      CUDA_VISIBLE_DEVICES: ""
       # Voicechat is OFF by default in this example.
       # To enable voicechat: set VOICE_ENABLED=true, set a valid VOICE_HOST_URL,
       # and run with tunnel profile (or provide your own public reverse proxy).
@@ -31,7 +27,6 @@ services:
       - ./hf_cache:/app/hf_cache
       - ./torch_cache:/app/torch_cache
       - ./models:/app/models
-    gpus: all
 
   # Uncomment to expose VOICE_HOST_URL via Cloudflare Tunnel:
   # tunnel:
