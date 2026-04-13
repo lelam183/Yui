@@ -185,6 +185,9 @@ const TRANSCRIPT = process.env.TRANSCRIPT?.toLowerCase() === "true";
 const TRANSCRIPT_DELAY_MS = Math.max(0, parseInt(process.env.TRANSCRIPT_DELAY_MS || "1000", 10) || 1000);
 const VOICE_SEND_METHOD = (process.env.VOICE_SEND_METHOD || "attachment_first").trim().toLowerCase();
 const VOICE_NATIVE_EMULATION = (process.env.VOICE_NATIVE_EMULATION || "true").trim().toLowerCase() === "true";
+const RAW_VOICE_NATIVE_EXT = (process.env.VOICE_NATIVE_EXT || "ogg").trim().toLowerCase().replace(/^\./, "");
+const ALLOWED_VOICE_NATIVE_EXT = new Set(["ogg", "opus", "mp3", "wav", "m4a", "aac"]);
+const VOICE_NATIVE_EXT = ALLOWED_VOICE_NATIVE_EXT.has(RAW_VOICE_NATIVE_EXT) ? RAW_VOICE_NATIVE_EXT : "ogg";
 const VOICE_NATIVE_TTL_MS = Math.max(1000, parseInt(process.env.VOICE_NATIVE_TTL_MS || "60000", 10) || 60000);
 const VOICE_FILE_TTL_HOURS = Math.max(0, parseInt(process.env.VOICE_FILE_TTL_HOURS || "720", 10) || 720);
 const VOICE_FILE_TTL_MS = VOICE_FILE_TTL_HOURS * 60 * 60 * 1000;
@@ -227,20 +230,42 @@ function registerVoiceFile(filePath) {
   return `${baseUrl}/voice/${encodeURIComponent(fileName)}`;
 }
 
-async function transcodeToNativeVoiceOgg(inputPath) {
-  const outPath = inputPath.replace(/\.[^.]+$/, ".native.ogg");
+async function transcodeToNativeVoice(inputPath) {
+  const outPath = inputPath.replace(/\.[^.]+$/, `.native.${VOICE_NATIVE_EXT}`);
   return await new Promise((resolve) => {
+    const codecArgsByExt = {
+      ogg: [
+        "-c:a", "libopus",
+        "-application", "voip",
+        "-vbr", "on",
+        "-compression_level", "10",
+        "-frame_duration", "20",
+        "-b:a", "24k",
+        "-ar", "16000",
+        "-ac", "1",
+        "-f", "ogg",
+      ],
+      opus: [
+        "-c:a", "libopus",
+        "-application", "voip",
+        "-vbr", "on",
+        "-compression_level", "10",
+        "-frame_duration", "20",
+        "-b:a", "24k",
+        "-ar", "16000",
+        "-ac", "1",
+        "-f", "opus",
+      ],
+      mp3: ["-c:a", "libmp3lame", "-b:a", "96k", "-ar", "16000", "-ac", "1", "-f", "mp3"],
+      wav: ["-c:a", "pcm_s16le", "-ar", "16000", "-ac", "1", "-f", "wav"],
+      m4a: ["-c:a", "aac", "-b:a", "64k", "-profile:a", "aac_low", "-ar", "16000", "-ac", "1", "-movflags", "+faststart", "-f", "mp4"],
+      aac: ["-c:a", "aac", "-b:a", "64k", "-ar", "16000", "-ac", "1", "-f", "adts"],
+    };
+    const codecArgs = codecArgsByExt[VOICE_NATIVE_EXT] || codecArgsByExt.ogg;
     const args = [
       "-y", "-i", inputPath,
       "-vn",
-      "-c:a", "libopus",
-      "-application", "voip",
-      "-vbr", "on",
-      "-compression_level", "10",
-      "-frame_duration", "20",
-      "-b:a", "24k",
-      "-ar", "16000",
-      "-ac", "1",
+      ...codecArgs,
       outPath
     ];
     const p = spawn("ffmpeg", args, { env: process.env });
@@ -250,7 +275,7 @@ async function transcodeToNativeVoiceOgg(inputPath) {
       if (code === 0 && fs.existsSync(outPath) && fs.statSync(outPath).size > 500) {
         resolve(outPath);
       } else {
-        console.warn(`[Voice] native ogg transcode failed: ${err.slice(-300)}`);
+        console.warn(`[Voice] native ${VOICE_NATIVE_EXT} transcode failed: ${err.slice(-300)}`);
         resolve(null);
       }
     });
@@ -4815,11 +4840,9 @@ async function handleMessage(api, message) {
                   const sendAsVoiceUrl = async (preferNative = true) => {
                     if (!VOICE_HOST_URL) throw new Error("VOICE_HOST_URL not set");
                     let voiceFileForSend = filePath;
-                    if (preferNative && VOICE_NATIVE_EMULATION && VOICE_OUTPUT_EXT === "ogg") {
-                      const ogg = await transcodeToNativeVoiceOgg(filePath);
-                      if (ogg) voiceFileForSend = ogg;
-                    } else if (preferNative && VOICE_NATIVE_EMULATION && VOICE_OUTPUT_EXT !== "ogg") {
-                      console.log(`  [Voice] Respect VOICE_OUTPUT_EXT=${VOICE_OUTPUT_EXT}, skip native ogg clone`);
+                    if (preferNative && VOICE_NATIVE_EMULATION) {
+                      const nativeFile = await transcodeToNativeVoice(filePath);
+                      if (nativeFile) voiceFileForSend = nativeFile;
                     }
                     const voiceUrl = (voiceFileForSend === filePath) ? publicUrl : registerVoiceFile(voiceFileForSend);
                     const durationMs = await probeDurationMs(voiceFileForSend);
@@ -4966,11 +4989,9 @@ async function handleMessage(api, message) {
     const sendAsVoiceUrl = async (preferNative = true) => {
       if (!VOICE_HOST_URL) throw new Error("VOICE_HOST_URL not set");
       let voiceFileForSend = filePath;
-      if (preferNative && VOICE_NATIVE_EMULATION && VOICE_OUTPUT_EXT === "ogg") {
-        const ogg = await transcodeToNativeVoiceOgg(filePath);
-        if (ogg) voiceFileForSend = ogg;
-      } else if (preferNative && VOICE_NATIVE_EMULATION && VOICE_OUTPUT_EXT !== "ogg") {
-        console.log(`  [VoiceDebug] Respect VOICE_OUTPUT_EXT=${VOICE_OUTPUT_EXT}, skip native ogg clone`);
+      if (preferNative && VOICE_NATIVE_EMULATION) {
+        const nativeFile = await transcodeToNativeVoice(filePath);
+        if (nativeFile) voiceFileForSend = nativeFile;
       }
       const voiceUrl = (voiceFileForSend === filePath) ? publicUrl : registerVoiceFile(voiceFileForSend);
       const durationMs = await probeDurationMs(voiceFileForSend);
@@ -6053,7 +6074,7 @@ async function main() {
   console.log(`  Voice  : ${VOICE_ENABLED ? `✅ BẬT → VieNeu TTS | ${VOICE_HOST_URL || "localhost-only"}` : "❌ TẮT (set VOICE_ENABLED=true trong .env)"}`);
   console.log(`  GPU    : NVIDIA_VISIBLE_DEVICES=${process.env.NVIDIA_VISIBLE_DEVICES || "unset"} | CUDA_VISIBLE_DEVICES=${process.env.CUDA_VISIBLE_DEVICES || "unset"} | VIENEU_GPU_ENABLED=${process.env.VIENEU_GPU_ENABLED || "false"}`);
   console.log(`  GPURoute: asr(cuda)=${ASR_CUDA_VISIBLE_DEVICES || "default"} | tts(cuda)=${VOICE_CUDA_VISIBLE_DEVICES || "default"} | video(cuda)=${VIDEO_CUDA_VISIBLE_DEVICES || "default"}`);
-  console.log(`  VoiceDbg: mode=${VOICE_SEND_METHOD} nativeEmu=${VOICE_NATIVE_EMULATION} ttlMs=${VOICE_NATIVE_TTL_MS} transcriptDefault=${TRANSCRIPT} transcriptDelayDefaultMs=${TRANSCRIPT_DELAY_MS}`);
+  console.log(`  VoiceDbg: mode=${VOICE_SEND_METHOD} nativeEmu=${VOICE_NATIVE_EMULATION} nativeExt=${VOICE_NATIVE_EXT} ttlMs=${VOICE_NATIVE_TTL_MS} transcriptDefault=${TRANSCRIPT} transcriptDelayDefaultMs=${TRANSCRIPT_DELAY_MS}`);
   console.log(`  ThreadLock: ✅ BẬT – mỗi thread xử lý tuần tự (tránh race condition)`);
   console.log(`  VideoQueue: ✅ GLOBAL 1-worker – video/STT chạy tuần tự toàn hệ thống`);
   console.log(`  TTSGuard : ✅ Khi video/STT local đang chạy → TTS tự fallback CPU`);
