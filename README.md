@@ -48,6 +48,10 @@ Bot chat nhóm Zalo, hỗ trợ hội thoại tự nhiên, phân tích ảnh/vid
 
 ### 1) Khuyên dùng cho user (không cần tự build image)
 
+Lưu ý cổng:
+- `3000` dùng cho web QR/login và endpoint chính của bot.
+- `3001` là cổng HTTP phục vụ file voice; Cloudflare Tunnel cần trỏ vào cổng này khi dùng `VOICE_HOST_URL` để gửi voice native trên Zalo.
+
 #### CPU
 
 ```bash
