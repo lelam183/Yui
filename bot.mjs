@@ -826,7 +826,7 @@ function getEffectiveVoice(tid) {
 // Format danh sách voice cho /voice list
 function formatVoiceList(tid) {
   const all = getAllVoices();
-  if (all.length === 0) return "⚠️ Chưa có giọng nào. Kiểm tra ref_info.json.";
+  if (all.length === 0) return "⚠️ Chưa có giọng nào trong thư mục voice sample.";
   const current = getEffectiveVoice(tid);
   const lines = all.map((v, i) => {
     const marker = (current && current.key === v.key) ? " ◀ đang dùng" : "";

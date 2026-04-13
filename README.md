@@ -296,8 +296,6 @@ Project đã mount trực tiếp thư mục:
 - Host: `voice-samples/data/ref_audio/`
 - Container: `/app/voice_samples`
 
-Thư mục này có sẵn file mẫu `ref_info.json` để user tham khảo.
-
 1. Thêm hoặc xóa file audio trong `voice-samples/data/ref_audio/` (khuyên dùng `wav`/`flac`, 5-15 giây, ít noise).
 2. Trong Zalo chat với bot, chạy:
    - `/voice reload`
@@ -306,8 +304,7 @@ Thư mục này có sẵn file mẫu `ref_info.json` để user tham khảo.
    - `/voice <số>`
 
 Lưu ý:
-- `ref_info.json` là file hướng dẫn mẫu cho người dùng.
-- Bot hiện đọc danh sách giọng theo file audio thực tế trong thư mục (không bắt buộc parse JSON để chạy).
+- Bot đọc danh sách giọng theo file audio thực tế trong thư mục.
 
 ## Lệnh vận hành thường dùng
 
