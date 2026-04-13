@@ -32,7 +32,6 @@ services:
 
   # Bỏ comment để phát VOICE_HOST_URL ra URL công khai qua Cloudflare Tunnel:
   # tunnel:
-  #   profiles: ["tunnel"]
   #   image: cloudflare/cloudflared:latest
   #   restart: unless-stopped
   #   command: tunnel run
