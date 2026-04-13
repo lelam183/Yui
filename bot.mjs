@@ -177,8 +177,6 @@ const VOICE_HOST_URL = VOICE_ENABLED
   ? ((process.env.VOICE_HOST_URL || "").trim().replace(/\/$/, ""))
   : "";
 const VOICE_TMP_DIR = process.env.VOICE_TMP_DIR || "/app/data/voice_tmp";
-const VOICE_PITCH = parseInt(process.env.VOICE_PITCH) || 2;
-const VOICE_NAME_TTS = process.env.VOICE_NAME || "vi-VN-HoaiMyNeural";
 const VOICE_TIMEOUT_S = parseInt(process.env.VOICE_TIMEOUT_S) || 90;
 const VOICE_ONLY_MODE = process.env.VOICE_ONLY_MODE?.toLowerCase() === "true";
 const TRANSCRIPT = process.env.TRANSCRIPT?.toLowerCase() === "true";
@@ -6007,7 +6005,7 @@ async function main() {
   console.log(`  DB     : ${DB_PATH}`);
   console.log(`  Aliases: ${memberAliases.length} thành viên có biệt danh${memberAliases.length > 0 ? " → " + memberAliases.map(m => `${m.realName}(${m.aliases.join(",")})`).join(" | ") : ""}`);
   console.log(`  TZ     : ${process.env.TZ || "Asia/Ho_Chi_Minh"}`);
-  console.log(`  Voice  : ${VOICE_ENABLED ? `✅ BẬT → VieNeu TTS | edgeVoice=${VOICE_NAME_TTS} | pitch=${VOICE_PITCH} | ${VOICE_HOST_URL || "localhost-only"}` : "❌ TẮT (set VOICE_ENABLED=true trong .env)"}`);
+  console.log(`  Voice  : ${VOICE_ENABLED ? `✅ BẬT → VieNeu TTS | ${VOICE_HOST_URL || "localhost-only"}` : "❌ TẮT (set VOICE_ENABLED=true trong .env)"}`);
   console.log(`  GPU    : NVIDIA_VISIBLE_DEVICES=${process.env.NVIDIA_VISIBLE_DEVICES || "unset"} | CUDA_VISIBLE_DEVICES=${process.env.CUDA_VISIBLE_DEVICES || "unset"} | VIENEU_GPU_ENABLED=${process.env.VIENEU_GPU_ENABLED || "false"}`);
   console.log(`  GPURoute: asr(cuda)=${ASR_CUDA_VISIBLE_DEVICES || "default"} | tts(cuda)=${VOICE_CUDA_VISIBLE_DEVICES || "default"} | video(cuda)=${VIDEO_CUDA_VISIBLE_DEVICES || "default"}`);
   console.log(`  VoiceDbg: mode=${VOICE_SEND_METHOD} nativeEmu=${VOICE_NATIVE_EMULATION} ttlMs=${VOICE_NATIVE_TTL_MS} transcriptDefault=${TRANSCRIPT} transcriptDelayDefaultMs=${TRANSCRIPT_DELAY_MS}`);

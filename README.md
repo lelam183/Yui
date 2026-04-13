@@ -188,8 +188,6 @@ Quy ước:
 - `VIENEU_MAX_STRETCH_RATIO` — Tùy chọn — Default CPU/GPU: `2.6` — Ngưỡng co giãn thời lượng audio của VieNeu.
 - `VOICE_PORT` — Tùy chọn — Default CPU/GPU: `3001` — Port HTTP serve voice file.
 - `VOICE_HOST_URL` — **Khuyên dùng (gần như bắt buộc khi gửi voice qua URL)** — Default CPU/GPU: (rỗng) — URL public để client Zalo tải voice.
-- `VOICE_NAME` — Tùy chọn — Default CPU/GPU: `vi-VN-HoaiMyNeural` — Tên voice fallback.
-- `VOICE_PITCH` — Tùy chọn — Default CPU/GPU: `2` — Pitch voice fallback.
 - `VOICE_TIMEOUT_S` — Tùy chọn — Default CPU/GPU: `300` — Timeout pipeline voice (giây).
 - `VOICE_FILE_TTL_HOURS` — Tùy chọn — Default CPU/GPU: `720` — Thời gian giữ file voice đã tạo (giờ).
 
