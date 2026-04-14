@@ -15,6 +15,21 @@ services:
       HISTORY_DIR: /app/data/history
       DB_PATH: /app/data/history/bot.db
 
+      # Gemini models & bot behavior (không nhạy cảm)
+      GEMINI_MODEL: gemini-3.1-flash-lite-preview,gemini-2.5-flash-lite,gemma-3-27b-it,gemini-3-flash-preview
+      GEMINI_VISION_MODELS: gemini-2.5-flash,gemini-3-flash-preview,gemini-3-pro-preview,gemini-3.1-flash-lite-preview,gemini-2.5-flash-lite
+      GEMINI_SEARCH_MODELS: gemini-2.5-flash-lite,gemini-2.5-flash,gemini-3.1-flash-lite-preview,gemini-3-flash-preview,gemini-2.5-pro
+      GEMINI_AUDIO_MODEL: gemini-2.5-flash,gemini-2.5-flash-lite,gemini-3.1-flash-lite-preview,gemini-3-flash-preview,gemini-2.5-pro
+      GEMINI_TEMPERATURE: "1.1"
+      SYSTEM_PROMPT: Yui - friendly Vietnamese chat bot. Keep replies short and natural.
+      ENABLE_SEARCH: "false"
+      CAUTION_USERS: ""
+      GROUP_PREFIX: "@yui "
+      BOT_MENTION_ALIASES: yui,commit,bot,ai
+      MEMBER_ALIASES: ""
+      BOT_OWNER_NAME: Your Name
+      BOT_OWNER_UID: ""
+
       # GPU runtime (không để trong .env để tránh rối)
       VIENEU_GPU_ENABLED: "true"
       NVIDIA_VISIBLE_DEVICES: all
@@ -30,6 +45,20 @@ services:
       # Video (Gemini, không dùng local)
       VIDEO_AI_ENABLED: "true"
       VIDEO_AI_PROVIDER: "gemini"
+      GEMINI_VIDEO_MODELS: gemini-2.5-flash-lite,gemini-3.1-flash-lite-preview,gemini-2.5-flash,gemini-3-flash-preview
+      GEMINI_VIDEO_MODEL: ""
+      GEMINI_VIDEO_TIMEOUT_MS: "90000"
+      GEMINI_VIDEO_POLL_MS: "2500"
+      GEMINI_VIDEO_POLL_TIMEOUT_MS: "120000"
+      YOUTUBE_VIDEO_AI_ENABLED: "true"
+      VIDEO_ASR_MAX_SECONDS: "120"
+      VIDEO_FORCE_CPU: "false"
+      VIDEO_LOCAL_FILES_ONLY: "false"
+      LOCAL_ASR_MODEL: large-v3-turbo
+      LOCAL_ASR_LANG: auto
+      VIDEO_ASR_ALLOWED_LANGS: vi,en,ja
+      LOCAL_ASR_FALLBACK_LANG: vi
+      LOCAL_ASR_BEAM_SIZE: "5"
 
       # Voice defaults
       TRANSCRIPT: "false"
