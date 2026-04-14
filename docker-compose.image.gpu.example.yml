@@ -76,6 +76,16 @@ services:
       VOICE_PORT: "3001"
       VOICE_TIMEOUT_S: "300"
       VOICE_FILE_TTL_HOURS: "720"
+      VOICE_TMP_DIR: /app/data/voice_tmp
+      ACTIVE_CONV_TTL_MS: "120000"
+
+      # VieNeu (BẮT BUỘC cho voice_pipeline.py)
+      USE_VIENEU_TTS: "true"
+      VIENEU_MODE: turbo
+      VIENEU_MODELS: pnnbao-ump/VieNeu-TTS-v2-Turbo
+      VIENEU_MODEL: pnnbao-ump/VieNeu-TTS-v2-Turbo
+      VIENEU_API_BASE: ""
+      VIENEU_REF_AUDIO: ""
       # Voicechat đang TẮT mặc định trong file mẫu này.
       # Muốn bật voicechat: đặt VOICE_ENABLED=true, đặt VOICE_HOST_URL hợp lệ,
       # rồi chạy kèm profile tunnel (hoặc dùng reverse proxy công khai của riêng bạn).

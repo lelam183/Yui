@@ -138,14 +138,39 @@ def vieneu_tts_to_wav(text: str, out_wav: str, ref_audio_override: str | None = 
     if not t:
         return False
 
-    try:
-        use_gpu = os.environ.get("VIENEU_GPU_ENABLED", "false").strip().lower() == "true"
+    def _supports_vieneu_gpu() -> bool:
+        """
+        VieNeu turbo uses ONNXRuntime CUDA EP + cuDNN. Newer stacks can fail on older GPUs
+        (notably Pascal, e.g. GTX 1060 sm_61) with CUDNN_STATUS_* errors. We detect and
+        auto-fallback to CPU to keep the bot functional on mixed-GPU hosts.
+        """
+        if os.environ.get("VIENEU_GPU_ENABLED", "false").strip().lower() != "true":
+            return False
+        try:
+            import torch
+            if not torch.cuda.is_available():
+                return False
+            major, minor = torch.cuda.get_device_capability(0)
+            # Pascal is compute capability 6.x. Prefer CPU fallback for stability.
+            if major < 7:
+                print(
+                    f"[voice_pipeline] GPU compute_capability={major}.{minor} (older GPU) → fallback to CPU for VieNeu",
+                    file=sys.stderr,
+                )
+                return False
+            return True
+        except Exception as e:
+            print(f"[voice_pipeline] GPU capability check failed: {e} → fallback to CPU", file=sys.stderr)
+            return False
+
+    def _run_vieneu(device: str) -> bool:
+        use_gpu_local = device == "cuda"
         print(
             f"[voice_pipeline] GPU route env: NVIDIA_VISIBLE_DEVICES={os.environ.get('NVIDIA_VISIBLE_DEVICES', '')} "
-            f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES', '')} use_gpu={use_gpu}",
+            f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES', '')} use_gpu={use_gpu_local}",
             file=sys.stderr,
         )
-        if use_gpu:
+        if use_gpu_local:
             try:
                 import torch
                 if torch.cuda.is_available():
@@ -154,7 +179,7 @@ def vieneu_tts_to_wav(text: str, out_wav: str, ref_audio_override: str | None = 
                 pass
         try:
             with _ProgressTicker("loading VieNeu model (HF cache/download)"):
-                tts = Vieneu(device="cuda" if use_gpu else "cpu")
+                tts = Vieneu(device=device)
         except TypeError:
             with _ProgressTicker("loading VieNeu model (legacy init)"):
                 tts = Vieneu() # Fallback if Vieneu does not support device arg
@@ -181,6 +206,16 @@ def vieneu_tts_to_wav(text: str, out_wav: str, ref_audio_override: str | None = 
         audio = tts.infer(text=t, voice=voice_data) if voice_data is not None else tts.infer(text=t)
         tts.save(audio, out_wav)
         return os.path.exists(out_wav) and os.path.getsize(out_wav) > 500
+        return True
+
+    try:
+        # Prefer GPU when enabled and supported, otherwise CPU.
+        if _supports_vieneu_gpu():
+            if _run_vieneu("cuda"):
+                return True
+            print("[voice_pipeline] VieNeu GPU failed → retry on CPU", file=sys.stderr)
+            return _run_vieneu("cpu")
+        return _run_vieneu("cpu")
     except Exception as e:
         print(f"[voice_pipeline] VieNeu error: {e}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)

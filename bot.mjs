@@ -4442,6 +4442,31 @@ function buildMentionedUsersContext(mentions, tid, senderUid, senderName) {
 // ── Nhật ký hành động gần đây của bot (tag/reply) – tránh model phủ nhận khi bị hỏi lại ──
 const RECENT_BOT_ACTIONS_LIMIT = 14;
 const recentBotActionsByThread = new Map(); // tid → { kind, names?, preview, t }[]
+const lastUserQuestionByThread = new Map(); // tid → last sanitized user question (string)
+
+function normalizeForRepeatCheck(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[“”"']/g, '"')
+    .replace(/[^\p{L}\p{N}\s".,!?-]/gu, "")
+    .trim();
+}
+
+function roughSimilarity(a, b) {
+  // Token overlap similarity (fast, good enough to catch near-duplicates)
+  const A = normalizeForRepeatCheck(a);
+  const B = normalizeForRepeatCheck(b);
+  if (!A || !B) return 0;
+  if (A === B) return 1;
+  const toksA = new Set(A.split(" ").filter(Boolean));
+  const toksB = new Set(B.split(" ").filter(Boolean));
+  if (toksA.size === 0 || toksB.size === 0) return 0;
+  let inter = 0;
+  for (const t of toksA) if (toksB.has(t)) inter++;
+  const union = toksA.size + toksB.size - inter;
+  return union > 0 ? inter / union : 0;
+}
 
 function previewForActionLog(s, n = 120) {
   if (!s) return "";
@@ -4823,6 +4848,7 @@ async function handleMessage(api, message) {
   ) => {
     console.log(`  [processBotReply] q="${(question || "").slice(0, 60)}" mB64=${!!mB64} mime=${mMime || "none"} extraCtx=${extraCtx.length}ch`);
     const sanitizedQuestion = (question || "").replace(/^\/\s*vc\s+/i, "").trim();
+    if (tid) lastUserQuestionByThread.set(tid, sanitizedQuestion);
 
     // ── Anti-injection: pattern check + user injection state check ──────────
     const _isPatternInjection = isPromptInjection(sanitizedQuestion);
@@ -4933,6 +4959,48 @@ async function handleMessage(api, message) {
     reply = reply.replace(/\[=\.=?\]/g, '').replace(/\[:\/?[A-Za-z|.]\]/g, '').replace(/\[\s*=+\s*\]/g, '').trim();
     // Absolute guard: never leak internal context blocks to chat output.
     reply = stripInternalContextLeakage(reply);
+
+    // ── Anti-repeat guard (1 retry) ──────────────────────────────────────────
+    // If the model outputs a near-duplicate of the previous bot reply while the user asked something new,
+    // re-generate once with an explicit instruction to answer the NEW message.
+    try {
+      const prev = recentBotActionsByThread.get(tid)?.slice(-1)?.[0]?.preview || "";
+      const prevUserQ = lastUserQuestionByThread.get(tid) || "";
+      const sim = prev ? roughSimilarity(reply, prev) : 0;
+      const qChanged = roughSimilarity(sanitizedQuestion, prevUserQ) < 0.65; // same question → allow repeats
+      if (reply && prev && sim >= 0.84 && qChanged) {
+        console.warn(`  [REPLY] Detected near-duplicate (sim=${sim.toFixed(2)}) → retry once`);
+        const retryCtx =
+          `[CHỐNG LẶP TRẢ LỜI]\n` +
+          `- Tin nhắn mới của user KHÁC với tin nhắn trước.\n` +
+          `- Reply vừa rồi quá giống reply cũ.\n` +
+          `YÊU CẦU: Trả lời TRỰC TIẾP tin nhắn MỚI của user. KHÔNG được lặp lại nội dung cũ.\n` +
+          `Reply cũ (để tránh lặp): "${prev}"\n`;
+        const retry = await askGemini(
+          tid,
+          sanitizedQuestion,
+          mB64,
+          mMime,
+          retryCtx + ctx,
+          null,
+          useRag,
+          sender,
+          getThreadSearch(tid),
+        );
+        let r2 = (retry.text || "").replace(new RegExp(REACT_TYPES_RE.source, "gi"), "").trim();
+        r2 = r2.replace(/\[REACT[:\s][^\]]{0,30}\]/gi, "").trim();
+        r2 = r2.replace(/\[=\.=?\]/g, '').replace(/\[:\/?[A-Za-z|.]\]/g, '').replace(/\[\s*=+\s*\]/g, '').trim();
+        r2 = stripInternalContextLeakage(r2);
+        if (r2 && roughSimilarity(r2, prev) < sim) {
+          reply = r2;
+          console.log(`  [REPLY] Retry accepted (new_sim=${roughSimilarity(reply, prev).toFixed(2)})`);
+        } else {
+          console.warn(`  [REPLY] Retry not better → keep original`);
+        }
+      }
+    } catch (e) {
+      console.warn(`  [REPLY] anti-repeat guard error: ${e?.message || e}`);
+    }
     if (reply) {
       console.log(`  [REPLY] "${reply.replace(/\n/g, "\\n")}"`);
       // Build styled message: RAG mode dùng full format, chat thường minimal
