@@ -69,13 +69,11 @@ Nếu muốn chạy cả Cloudflare Tunnel cùng lúc:
 docker compose up -d
 ```
 
-#### GPU
-
-Yêu cầu host có NVIDIA driver + `nvidia-container-toolkit`.
+Yêu cầu hệ điều hành Host (Linux/Windows WSL) phải có driver NVIDIA + `nvidia-container-toolkit`. Docker Compose V2 hiện hỗ trợ native truyền GPU.
 
 ```bash
 cp .env.gpu.example .env
-# sửa GEMINI_API_KEY, CLOUDFLARE_TUNNEL_TOKEN, VOICE_HOST_URL...
+# Mở file .env và điền GEMINI_API_KEY. Để Voice hoạt động, nhớ điền luôn VOICE_HOST_URL và VOICE_ENABLED=true
 cp docker-compose.gpu.example.yml docker-compose.yml
 docker compose up -d
 ```
@@ -279,13 +277,16 @@ Quy ước:
 - `TZ` — Thiết lập trong `docker-compose*.yml` — Default compose: `Asia/Ho_Chi_Minh` — Timezone container.
 - `ACTIVE_CONV_TTL_MS` — Tùy chọn — Default CPU/GPU: `120000` — Cửa sổ active conversation (ms).
 
-### 8) NVIDIA routing (chỉ GPU)
+### 8) Quản lý card đồ họa (NVIDIA GPU - chạy Docker Compose)
 
-- `NVIDIA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: `all` / CPU: không dùng — Expose toàn bộ GPU cho container.
-- `CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: `all` / CPU: không dùng — Cho CUDA dùng toàn bộ GPU.
-- `ASR_CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: để trống / CPU: không dùng — Để trống = không pin GPU riêng cho ASR.
-- `VOICE_CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: để trống / CPU: không dùng — Để trống = không pin GPU riêng cho TTS.
-- `VIDEO_CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: để trống / CPU: không dùng — Để trống = không pin GPU riêng cho video.
+Hệ thống hỗ trợ truyền card qua cấu hình `deploy.resources.reservations.devices` tiêu chuẩn của Docker.
+
+- `VIENEU_GPU_ENABLED` — Tùy chọn (GPU) — Default GPU: `true` — Lệnh thiết yếu bật tính năng tăng tốc GPU cho tính năng sinh giọng nói.
+- `ASR_CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: `"0"` — Điều phối luồng xử lý giọng nói người dùng (Speech to text) tới GPU số 0.
+- `VOICE_CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: `"0"` — Điều phối luồng sinh giọng nói (VieNeu TTS) tới GPU số 0.
+- `VIDEO_CUDA_VISIBLE_DEVICES` — Tùy chọn (GPU) — Default GPU: `"0"` — Điều phối luồng xử lý video local tới GPU số 0.
+
+*(Mẹo: Nếu bạn máy ráp nhiều GPU (VD 2 card đồ họa), bạn có thể gán `VOICE_CUDA_VISIBLE_DEVICES="1"` vào card số 2 để san đều hiệu năng AI giữa các linh kiện).*
 
 ## Voice sample mặc định và cách thêm voice mới
 
@@ -335,11 +336,19 @@ Lưu ý:
 
 ## Lệnh vận hành thường dùng
 
+Lúc nào cần xem bot đang làm gì (kể cả xem lỗi), bạn dùng lệnh sau để đọc nhật ký (logs):
 ```bash
 docker compose logs -f bot
+```
+
+Khi cập nhật cấu hình hoặc clone giọng nói mới:
+```bash
 docker compose restart bot
+```
+
+Tắt hoàn toàn:
+```bash
 docker compose down
-docker compose pull && docker compose up -d
 ```
 
 ## Troubleshooting nhanh
