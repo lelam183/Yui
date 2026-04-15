@@ -3,7 +3,6 @@ import { init as initJxlDecoder } from "@jsquash/jxl/decode.js";
 import { decode as decodeJxl } from "@jsquash/jxl";
 import sharp from "sharp";
 import { readFile as fsReadFile } from "fs/promises";
-import qrcode from "qrcode-terminal";
 import fs from "fs";
 import path from "path";
 import http from "http";
@@ -4186,7 +4185,7 @@ async function getApi() {
   }
   const api = await new Zalo().loginQR({}, async (event) => {
     switch (event.type) {
-      case 0: fs.mkdirSync(path.dirname(QR_FILE), { recursive: true }); await event.actions.saveToFile(QR_FILE); startQrServer(); console.log("\nQR:\n"); qrcode.generate(event.data.code || event.data, { small: true }); break;
+      case 0: fs.mkdirSync(path.dirname(QR_FILE), { recursive: true }); await event.actions.saveToFile(QR_FILE); startQrServer(); console.log("\nQR saved to", QR_FILE, "— open http://localhost:" + QR_PORT + " to scan"); break;
       case 1: case 3: event.actions.retry(); break;
       case 4: saveSession(event.data); try { if (fs.existsSync(QR_FILE)) fs.unlinkSync(QR_FILE); } catch { } stopQrServer(); console.log("Login OK!"); break;
     }
